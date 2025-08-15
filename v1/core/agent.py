@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import sys, pathlib
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
 import json
 from core.bus import consume
 from core.config import load_settings, resolve_handler
