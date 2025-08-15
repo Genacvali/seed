@@ -126,4 +126,4 @@ def run(host: str, payload: Dict) -> str:
     if llm_line:
         lines += ["─" * 40, llm_line]
 
-    return render_panel(title, lines, subtitle="SEED · Final Fantasy style")
+    return render_panel(title, lines, subtitle="SEED")

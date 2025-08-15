@@ -104,4 +104,4 @@ def run(host: str, payload: Dict) -> str:
         lines.append("─" * 40)
         lines.append(llm_line)
 
-    return render_panel("🖥  HOST STATUS PANEL", lines, subtitle="SEED · Final Fantasy style")
+    return render_panel("🖥  HOST STATUS PANEL", lines, subtitle="SEED")
