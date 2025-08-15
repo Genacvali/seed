@@ -13,6 +13,10 @@ alerts:
   os_basic:
     plugin: os_basic
     payload_default: {}
+    
+  host_inventory:
+    plugin: host_inventory
+    payload_default: {}
 
   # горячие Mongo-операции: разные mongo_uri для прод/стейджа
   mongo_hotspots:
