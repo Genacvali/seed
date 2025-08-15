@@ -16,7 +16,8 @@ alerts:
     
   host_inventory:
     plugin: host_inventory
-    payload_default: {}
+    payload_default:
+      paths: ["/", "/data"]
 
   # горячие Mongo-операции: разные mongo_uri для прод/стейджа
   mongo_hotspots:

@@ -1,100 +1,93 @@
 # plugins/host_inventory.py
 # -*- coding: utf-8 -*-
 """
-SEED plugin: host_inventory
-Короткий «паспорт» сервера без внешних библиотек.
+SEED plugin: host_inventory (через Telegraf Prometheus exporter)
+Забирает метрики ОС только по HTTP-эндпоинту Telegraf (без /proc, без SSH).
+Ожидаемые метрики (Telegraf metric_version=2):
+- mem_total, mem_available
+- system_load1, system_load5, system_n_cpus (если есть)
+- disk_used_percent{path=...}, disk_used{path=...}, disk_total{path=...}
 """
 
-import os, socket, platform, time, shutil
+import os
+from typing import Dict, List
+from .utils import fmt_bytes  # если есть общий хелпер; иначе встроим локально
+try:
+    from fetchers.telegraf import get_gauge
+except Exception:
+    # Фолбэк: минимальная обёртка, если fetchers.telegraf не найден (не должен пригодиться)
+    raise
 
-def _read_os_release():
-    p = "/etc/os-release"
-    if not os.path.exists(p):
-        return "-"
-    data = {}
-    with open(p, "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line:
-                k, v = line.strip().split("=", 1)
-                data[k] = v.strip('"')
-    name = data.get("PRETTY_NAME") or (data.get("NAME","") + " " + data.get("VERSION",""))
-    return name or "-"
-
-def _uptime_human():
-    try:
-        with open("/proc/uptime","r") as f:
-            secs = float(f.read().split()[0])
-        days  = int(secs // 86400); secs %= 86400
-        hours = int(secs // 3600);  secs %= 3600
-        mins  = int(secs // 60)
-        return f"{days}d {hours}h {mins}m"
-    except Exception:
-        return "-"
-
-def _mem_info():
-    mi = {}
-    try:
-        with open("/proc/meminfo","r") as f:
-            for line in f:
-                k, v, *_ = line.split()
-                mi[k] = int(v)  # в кБ
-        total = mi.get("MemTotal", 0) * 1024
-        avail = mi.get("MemAvailable", 0) * 1024
-        used  = total - avail
-        return total, used, avail
-    except Exception:
-        return 0, 0, 0
-
-def _fmt_bytes(n):
-    if n is None: return "-"
-    for unit in ("B","KB","MB","GB","TB"):
-        if n < 1024: return f"{n:.1f} {unit}"
+def _fmt_bytes(n: float | int | None) -> str:
+    if n is None:
+        return "n/a"
+    n = float(n)
+    for u in ("B", "KB", "MB", "GB", "TB", "PB"):
+        if n < 1024:
+            return f"{n:.1f} {u}"
         n /= 1024
-    return f"{n:.1f} PB"
+    return f"{n:.1f} EB"
 
-def run(host: str, payload: dict) -> str:
-    fqdn   = socket.getfqdn() or host
-    osver  = _read_os_release()
-    kern   = platform.release()
-    arch   = platform.machine()
-    up     = _uptime_human()
+def _percent(v: float | None) -> str:
+    return f"{v:.0f}%" if isinstance(v, (int, float)) else "n/a"
 
-    # диски: корень и /data, если есть
-    parts = [("/", "root")]
-    if os.path.ismount("/data"):
-        parts.append(("/data", "data"))
+def run(host: str, payload: Dict) -> str:
+    """
+    payload:
+      paths: ["/", "/data"]  # какие точки монтирования показывать
+      port:  9216            # если не дефолтный
+    """
+    port  = int(payload.get("port") or os.getenv("TELEGRAF_PORT", 9216))
+    paths: List[str] = payload.get("paths") or ["/", "/data"]
 
+    # --- RAM ---
+    mem_total = get_gauge(host, "mem_total", port=port)
+    mem_avail = get_gauge(host, "mem_available", port=port)
+    mem_used  = mem_total - mem_avail if (mem_total and mem_avail) else None
+
+    # --- CPU / Load (если есть) ---
+    load1  = get_gauge(host, "system_load1", port=port)
+    load5  = get_gauge(host, "system_load5", port=port)
+    ncpu   = get_gauge(host, "system_n_cpus", port=port)  # может отсутствовать
+    cpu_line = "CPU: n/a"
+    if load1 is not None or load5 is not None:
+        if ncpu:
+            cpu_line = f"CPU/Load: {int(ncpu)} vCPU · load1 {load1:.2f} · load5 {load5:.2f}"
+        else:
+            cpu_line = f"CPU/Load: load1 {load1:.2f} · load5 {load5:.2f}"
+
+    # --- Disks per path ---
     disk_lines = []
-    for mp, name in parts:
-        try:
-            du = shutil.disk_usage(mp)
-            used_pct = 0 if du.total == 0 else int(du.used * 100 / du.total)
-            disk_lines.append(f"- `{mp}`: {used_pct}% ({_fmt_bytes(du.used)} / {_fmt_bytes(du.total)})")
-        except Exception:
-            disk_lines.append(f"- `{mp}`: n/a")
-
-    mtot, muse, mavail = _mem_info()
-    mem_line = f"RAM: {_fmt_bytes(muse)} / {_fmt_bytes(mtot)} (free {_fmt_bytes(mavail)})" if mtot else "RAM: n/a"
+    for p in paths:
+        used_pct   = get_gauge(host, "disk_used_percent", labels={"path": p}, port=port)
+        used_bytes = get_gauge(host, "disk_used",         labels={"path": p}, port=port)
+        tot_bytes  = get_gauge(host, "disk_total",        labels={"path": p}, port=port)
+        disk_lines.append(f"- `{p}` — **{_percent(used_pct)}** ({_fmt_bytes(used_bytes)} / {_fmt_bytes(tot_bytes)})")
 
     lines = []
-    lines.append(f"### SEED · Профиль хоста `{fqdn}`")
-    lines.append(f"• OS: **{osver}**  • Kernel: `{kern}`  • Arch: `{arch}`")
-    lines.append(f"• Uptime: {up}")
-    lines.append(mem_line)
+    lines.append(f"### SEED · Профиль хоста `{host}`")
+    # RAM
+    if mem_total:
+        lines.append(f"**RAM:** {_fmt_bytes(mem_used)} / {_fmt_bytes(mem_total)} (free {_fmt_bytes(mem_avail)})")
+    else:
+        lines.append("**RAM:** n/a")
+    # CPU/Load
+    lines.append(cpu_line)
+    # Disks
     lines.append("**Диски:**")
-    lines += disk_lines
+    lines.extend(disk_lines)
 
-    # необязательная мини-подсказка
+    # --- Короткий совет от LLM (опционально) ---
     try:
-        use_llm = os.getenv("USE_LLM","0") == "1"
+        use_llm = os.getenv("USE_LLM", "0") == "1"
         if use_llm:
             from core.llm import GigaChat
             tip = GigaChat().ask(
-                "Дай одну короткую рекомендацию по базовой гигиене Linux-хоста (ресурсы, логи, автозапуски). Не более 2 предложений.",
-                max_tokens=120
+                "Оцени паспорт сервера (RAM, load, диски) и дай 1–2 очень кратких совета по гигиене (лог-очистка, индексы, автозапуск). Без воды.",
+                max_tokens=80,
             )
             if tip:
-                lines.append("\n**LLM совет:** " + tip.strip())
+                lines.append("\n**LLM-совет:** " + tip.strip())
     except Exception as e:
         lines.append(f"\n_(LLM недоступен: {e})_")
 
