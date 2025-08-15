@@ -10,10 +10,6 @@ groups:
 # Маршрутизация алёртов → плагины и их payload
 alerts:
   # инвентаризация ОС (пример, без Mongo)
-  os_basic:
-    plugin: os_basic
-    payload_default: {}
-    
   host_inventory:
     plugin: host_inventory
     payload_default:
