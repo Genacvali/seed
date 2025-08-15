@@ -39,7 +39,7 @@ def render_panel(title: str, lines: List[str], subtitle: Optional[str] = None) -
     inner = maxw + pad * 2
     border_top    = f"{TL}{HL * inner}{TR}"
     border_sep    = f"{SEP_T}{HL * inner}{SEP_TR}"
-    border_bottom = f"{BR}{HL * inner}{BR.replace('╝','╝')}"  # просто симметрия
+    border_bottom = f"{BL}{HL * inner}{BR}"
 
     out = []
     out.append(border_top)

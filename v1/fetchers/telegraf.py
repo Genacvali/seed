@@ -1,23 +1,45 @@
 # fetchers/telegraf.py
 # -*- coding: utf-8 -*-
-import os, re, requests
+import os, re, requests, time
 from functools import lru_cache
 from typing import Optional, Union, Dict
 
 TELEGRAF_PORT = int(os.getenv("TELEGRAF_PORT", "9216"))
 VERIFY = False  # Упрощено для работы в локальной сети
+CACHE_TTL = 30  # Cache TTL in seconds
 
 def _metrics_url(host: str, port: Optional[int] = None) -> str:
     p = port or TELEGRAF_PORT
     # обычно это http, если у тебя https — поправь тут
     return f"http://{host}:{p}/metrics"
 
-@lru_cache(maxsize=64)
+# Cache with TTL support
+_cache = {}
+_cache_times = {}
+
 def _scrape(host: str, port: Optional[int] = None) -> str:
+    cache_key = f"{host}:{port or TELEGRAF_PORT}"
+    now = time.time()
+    
+    # Check cache
+    if cache_key in _cache and cache_key in _cache_times:
+        if now - _cache_times[cache_key] < CACHE_TTL:
+            return _cache[cache_key]
+    
     url = _metrics_url(host, port)
-    r = requests.get(url, timeout=5, verify=VERIFY)
-    r.raise_for_status()
-    return r.text
+    try:
+        r = requests.get(url, timeout=5, verify=VERIFY)
+        r.raise_for_status()
+        result = r.text
+        
+        # Update cache
+        _cache[cache_key] = result
+        _cache_times[cache_key] = now
+        
+        return result
+    except requests.RequestException as e:
+        print(f"Failed to scrape metrics from {url}: {e}")
+        return ""
 
 def _labels_match(line: str, labels: Optional[Dict]) -> bool:
     if not labels: 
@@ -35,6 +57,9 @@ def get_gauge(host: str, metric: str, labels: Optional[Dict] = None, port: Optio
       get_gauge("host","disk_total", labels={"path":"/"})
     """
     text = _scrape(host, port)
+    if not text:  # Handle empty response from failed scrape
+        return None
+        
     val = None
     for line in text.splitlines():
         if not line or line.startswith("#"):
@@ -50,6 +75,6 @@ def get_gauge(host: str, metric: str, labels: Optional[Dict] = None, port: Optio
             num_str = line.strip().split()[-1]
             val = float(num_str)
             return val
-        except Exception:
+        except (ValueError, IndexError):
             continue
     return None
