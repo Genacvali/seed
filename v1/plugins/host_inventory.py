@@ -1,7 +1,7 @@
-# plugins/host_inventory.py
+# seed/v1/plugins/host_inventory.py
 # -*- coding: utf-8 -*-
 """
-SEED plugin: host_inventory (через Telegraf Prometheus exporter)
+SEED plugin: host_inventory (через Telegraf Prometheus exporter).
 Забирает метрики ОС только по HTTP-эндпоинту Telegraf (без /proc, без SSH).
 Ожидаемые метрики (Telegraf metric_version=2):
 - mem_total, mem_available
@@ -11,12 +11,9 @@ SEED plugin: host_inventory (через Telegraf Prometheus exporter)
 
 import os
 from typing import Dict, List
-from .utils import fmt_bytes  # если есть общий хелпер; иначе встроим локально
-try:
-    from fetchers.telegraf import get_gauge
-except Exception:
-    # Фолбэк: минимальная обёртка, если fetchers.telegraf не найден (не должен пригодиться)
-    raise
+
+# Берём get_gauge из fetchers.telegraf
+from fetchers.telegraf import get_gauge
 
 def _fmt_bytes(n: float | int | None) -> str:
     if n is None:
@@ -43,18 +40,19 @@ def run(host: str, payload: Dict) -> str:
     # --- RAM ---
     mem_total = get_gauge(host, "mem_total", port=port)
     mem_avail = get_gauge(host, "mem_available", port=port)
-    mem_used  = mem_total - mem_avail if (mem_total and mem_avail) else None
+    mem_used  = (mem_total - mem_avail) if (isinstance(mem_total,(int,float)) and isinstance(mem_avail,(int,float))) else None
 
     # --- CPU / Load (если есть) ---
     load1  = get_gauge(host, "system_load1", port=port)
     load5  = get_gauge(host, "system_load5", port=port)
     ncpu   = get_gauge(host, "system_n_cpus", port=port)  # может отсутствовать
-    cpu_line = "CPU: n/a"
     if load1 is not None or load5 is not None:
         if ncpu:
             cpu_line = f"CPU/Load: {int(ncpu)} vCPU · load1 {load1:.2f} · load5 {load5:.2f}"
         else:
             cpu_line = f"CPU/Load: load1 {load1:.2f} · load5 {load5:.2f}"
+    else:
+        cpu_line = "CPU/Load: n/a"
 
     # --- Disks per path ---
     disk_lines = []
@@ -67,7 +65,7 @@ def run(host: str, payload: Dict) -> str:
     lines = []
     lines.append(f"### SEED · Профиль хоста `{host}`")
     # RAM
-    if mem_total:
+    if isinstance(mem_total,(int,float)):
         lines.append(f"**RAM:** {_fmt_bytes(mem_used)} / {_fmt_bytes(mem_total)} (free {_fmt_bytes(mem_avail)})")
     else:
         lines.append("**RAM:** n/a")
@@ -83,7 +81,7 @@ def run(host: str, payload: Dict) -> str:
         if use_llm:
             from core.llm import GigaChat
             tip = GigaChat().ask(
-                "Оцени паспорт сервера (RAM, load, диски) и дай 1–2 очень кратких совета по гигиене (лог-очистка, индексы, автозапуск). Без воды.",
+                "Оцени паспорт сервера (RAM, load, диски) и дай 1–2 очень кратких практичных совета. Без воды.",
                 max_tokens=80,
             )
             if tip:
