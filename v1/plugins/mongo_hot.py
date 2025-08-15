@@ -3,7 +3,7 @@
 import os
 from typing import Dict, List
 from ui_ff import render_panel, bullets
-from fetchers.fetch_mongo import aggregate  # твой общий аггрегатор
+#from fetchers.fetch_mongo import aggregate  # твой общий аггрегатор
 
 PIPELINE = [
     {"$match": {"ns": {"$exists": True}, "millis": {"$gte": 50}}},  # переопред. в payload
