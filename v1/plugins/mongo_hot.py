@@ -1,109 +1,99 @@
-# seed/v1/plugins/mongo_hot.py
 # -*- coding: utf-8 -*-
 """
-SEED plugin: mongo_hot — компактная сводка «горячих» операций Mongo из system.profile.
-Вывод адаптирован под Mattermost (эмодзи + короткие строки).
+Плагин 'mongo_hot': берёт профайлер MongoDB (system.profile) и
+печатает «CLI-таблицу» через единый форматтер.
+Плагин занимается только данными; оформление — в ui_format.py.
 """
 
 import os
-from typing import Dict, List, Any
-from fetchers.fetch_mongo import aggregate  # обёртка вокруг PyMongo.aggregate()
+from typing import Dict, List
+from fetchers.fetch_mongo import aggregate
+from ui_format import header, cli_table, tips_block, small_note
 
-# --- утилиты ---------------------------------------------------------------
+# Базовый pipeline (min_ms и limit подставим в рантайме)
+BASE_PIPELINE = [
+    {"$match": {"ns": {"$exists": True}, "millis": {"$gte": 50}}},
+    {"$project": {"ns": 1, "op": 1, "millis": 1, "docsExamined": 1, "keysExamined": 1, "nreturned": 1, "planSummary": 1, "ts": 1}},
+    {"$sort": {"millis": -1}},
+    {"$limit": 10},
+]
 
-def _to_int(v, default=0) -> int:
-    try:
-        return int(v)
-    except Exception:
-        try:
-            return int(float(v))
-        except Exception:
-            return default
-
-def _to_float(v, default=0.0) -> float:
-    try:
-        return float(v)
-    except Exception:
-        return default
-
-def _truncate(s: str, maxlen: int = 160) -> str:
-    s = " ".join((s or "").split())
-    return s if len(s) <= maxlen else s[: maxlen - 1] + "…"
-
-# --- основной хэндлер ------------------------------------------------------
+def _row(doc: dict):
+    ns   = doc.get("ns", "?")
+    op   = doc.get("op", "?")
+    ms   = doc.get("millis", 0)
+    docs = doc.get("docsExamined", 0)
+    keys = doc.get("keysExamined", 0)
+    plan = doc.get("planSummary", "")
+    # нормализуем time
+    time = f"{int(ms)}ms"
+    return [ns, op, time, str(docs), str(keys), plan or ""]
 
 def run(host: str, payload: Dict) -> str:
     """
     payload:
-      mongo_uri: "mongodb://user:pass@host:27017/?authSource=admin&connect=direct"
-      db: "admin"
-      min_ms: 50
-      limit: 10
+      mongo_uri: mongodb://user:pass@host:27017/?authSource=admin&connect=direct
+      db:        admin
+      min_ms:    50
+      limit:     10
     """
     uri   = payload["mongo_uri"]
     db    = payload.get("db", "admin")
     minms = int(payload.get("min_ms", 50))
     limit = int(payload.get("limit", 10))
 
-    pipeline: List[Dict[str, Any]] = [
-        {"$match": {"ns": {"$exists": True}, "millis": {"$gte": minms}}},
-        {
-            "$project": {
-                "ns": 1, "op": 1, "millis": 1,
-                "docsExamined": 1, "keysExamined": 1, "nreturned": 1,
-                "planSummary": 1, "command": 1
-            }
-        },
-        {"$sort": {"millis": -1}},
-        {"$limit": limit},
-    ]
+    # подставляем параметры
+    pipeline = list(BASE_PIPELINE)
+    pipeline[0]["$match"]["millis"]["$gte"] = minms
+    pipeline[3]["$limit"] = limit
 
     docs = aggregate(uri, db, "system.profile", pipeline) or []
 
-    # Заголовок — максимально компактно
-    header = f"🗡 MONGO HOT SPOTS | 🍃 {host} | ⏱ {minms}ms | 🔝{limit}"
+    # ---- заголовок + мета
+    meta = f"• БД: {db}  • порог: {minms} мс  • найдено: {len(docs)}  • лимит: {limit}"
+    parts: List[str] = [header("Mongo Hot", host, meta)]
 
-    lines: List[str] = [header]
+    # ---- таблица
+    rows = [_row(d) for d in docs]
+    table_md = cli_table(
+        rows,
+        headers=["namespace", "op", "time", "docs", "keys", "plan"],
+        align=['l', 'l', 'r', 'r', 'r', 'l'],
+    )
+    parts.append(table_md)
 
-    for d in docs:
-        ns   = str(d.get("ns", "?"))
-        op   = str(d.get("op", "?"))
-        ms   = _to_int(d.get("millis", 0))
-        de   = _to_int(d.get("docsExamined", 0))
-        ke   = _to_int(d.get("keysExamined", 0))
-        nr   = _to_int(d.get("nreturned", 0))
-        eff  = (_to_float(de) / _to_float(nr)) if (nr and de) else 0.0
+    # ---- хвост: timestamp последней записи, если есть
+    try:
+        last_ts = max(d.get("ts") for d in docs if d.get("ts"))
+        parts.append(small_note(f"Последняя запись профайлера: {last_ts}"))
+    except Exception:
+        pass
 
-        # Попробуем вытащить короткое имя коллекции из ns "<db>.<coll>"
-        try:
-            _, coll = ns.split(".", 1)
-        except ValueError:
-            coll = ns
-
-        # compact line: одна строка на операцию
-        # пример:  🔥 events · find · 153ms · docs=2300 keys=120 ret=34 · eff=67.6
-        line = f"🔥 {coll} · {op} · {ms}ms · docs={de} keys={ke} ret={nr} · eff={eff:.1f}"
-
-        # убираем лишнее, чтобы не разъезжалась ширина в чате
-        lines.append(_truncate(line, 160))
-
-    if len(lines) == 1:
-        lines.append("✅ горячих операций не найдено (порог не превышен)")
-
-    # Короткий LLM-совет при включенном USE_LLM
+    # ---- LLM (опционально)
+    tips: List[str] = []
     try:
         if os.getenv("USE_LLM", "0") == "1":
             from core.llm import GigaChat
-            ctx = f"topN={len(docs)}; min_ms={minms}"
-            tip = GigaChat().ask(
-                f"Mongo профайлер ({ctx}). Дай 1–2 лаконичных совета по ускорению (индексы/фильтры/лимиты). "
-                f"Пиши конкретно и коротко, ≤120 символов.",
-                max_tokens=70
-            )
-            if tip:
-                tip = " ".join(tip.strip().split())
-                lines.append(f"💡 {tip}")
+            # контекст: первые N строк, min_ms
+            ctx = f"min_ms={minms}; topN={min(len(rows), 5)}; sample={'; '.join(r[0] + '/' + r[1] for r in rows[:5])}"
+            prompt = (
+                "Ты DBA по MongoDB. Дано из профайлера: {ctx}. "
+                "Сформулируй 2 кратких и практичных совета по индексации/фильтрам/лимитам. "
+                "Без общих фраз, без кода, ≤120 символов каждый."
+            ).format(ctx=ctx)
+            txt = GigaChat().ask(prompt, max_tokens=120) or ""
+            # распилим на 1–2 коротких предложения
+            for s in (txt.replace("\n", " ").split(". ")):
+                s = s.strip(" •-–—\n\t. ")
+                if s:
+                    tips.append(s)
+                if len(tips) >= 2:
+                    break
     except Exception as e:
-        lines.append(f"_(LLM недоступен: {e})_")
+        tips = [f"LLM недоступен: {e}"]
 
-    return "\n".join(lines)
+    tips_md = tips_block(tips, title="Советы")
+    if tips_md:
+        parts.append(tips_md)
+
+    return "\n".join(parts)

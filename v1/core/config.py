@@ -1,20 +1,24 @@
 # -*- coding: utf-8 -*-
-import os, yaml
+"""Configuration management for SEED monitoring system."""
+import os
+import yaml
 from pathlib import Path
+from typing import Dict, List, Tuple, Optional, Any
 
-_CFG = {}
-_BASE = Path(__file__).resolve().parents[1]
+_CFG: Dict[str, Any] = {}
+_BASE = Path(__file__).resolve().parents[1] 
 _CFG_FILE = os.getenv("SEED_CONFIG", str(_BASE / "configs" / "seed.yaml"))
 
-def load_settings():
+def load_settings() -> None:
+    """Load configuration from YAML file."""
     global _CFG
     p = Path(_CFG_FILE)
     if not p.exists():
-        raise RuntimeError(f"Нет конфига: {p}")
+        raise RuntimeError(f"Configuration file not found: {p}")
     _CFG = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
 
-def _match_host_group(host: str) -> list:
-    """вернём список групп, в которые входит host"""
+def _match_host_group(host: str) -> List[str]:
+    """Return list of groups that contain the host."""
     res = []
     for gname, g in (_CFG.get("groups") or {}).items():
         include = g.get("include") or []
@@ -22,22 +26,21 @@ def _match_host_group(host: str) -> list:
             res.append(gname)
     return res
 
-def get_connection_for_host(host: str, connection_type: str):
-    """Получаем строку подключения для хоста из его группы"""
+def get_connection_for_host(host: str, connection_type: str) -> Optional[str]:
+    """Get connection string for host from its group."""
     host_groups = _match_host_group(host)
     for gname in host_groups:
         group = _CFG.get("groups", {}).get(gname, {})
         connections = group.get("connections", {})
         if connection_type in connections:
             conn_str = connections[connection_type]
-            # Заменяем {host} на реальное имя хоста
             return conn_str.replace("{host}", host)
     return None
 
-def resolve_handler(alert: dict):
+def resolve_handler(alert: Dict[str, Any]) -> Tuple[Optional[str], Dict[str, Any]]:
     """
-    Находим для type + host подходящий плагин и payload.
-    Возвращает (plugin_name, payload_dict) или (None, {}).
+    Find plugin and payload for alert type + host.
+    Returns (plugin_name, payload_dict) or (None, {}).
     """
     atype = alert.get("type")
     host  = alert.get("host")
@@ -49,29 +52,24 @@ def resolve_handler(alert: dict):
     if not rule:
         return None, {}
 
-    # Базовый payload из правила
     payload = dict(rule.get("payload_default") or {})
-    # Перекрытие параметров по группам (если заданы)
+    
     host_groups = set(_match_host_group(host))
     for override in (rule.get("overrides") or []):
         groups = set(override.get("groups") or [])
         if groups & host_groups:
             payload.update(override.get("payload") or {})
 
-    # Перекрытие из самого события
     payload.update(alert.get("payload") or {})
 
-    # Автоматическое добавление подключений из групп хоста
     host_connections = {}
-    host_groups = _match_host_group(host)
-    for gname in host_groups:
+    host_groups_list = _match_host_group(host)
+    for gname in host_groups_list:
         group = _CFG.get("groups", {}).get(gname, {})
         connections = group.get("connections", {})
         for conn_type, conn_str in connections.items():
-            # Заменяем {host} на реальное имя хоста
             host_connections[conn_type] = conn_str.replace("{host}", host)
     
-    # Добавляем подключения к payload (если еще не заданы)
     for conn_type, conn_str in host_connections.items():
         if conn_type not in payload:
             payload[conn_type] = conn_str

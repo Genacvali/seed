@@ -1,35 +1,49 @@
 # -*- coding: utf-8 -*-
-import sys, pathlib
-sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
+"""Main SEED agent orchestrator."""
+import sys
+import pathlib
 import json
+import logging
+from typing import Any, Dict
+
+sys.path.append(str(pathlib.Path(__file__).resolve().parents[1]))
+
 from core.bus import consume
 from core.config import load_settings, resolve_handler
 from core.notifier import send_mm
 
-def _on_alert(msg: bytes):
+logging.basicConfig(level=logging.INFO)
+
+def _on_alert(msg: bytes) -> None:
+    """Process incoming alert message."""
     try:
-        alert = json.loads(msg.decode("utf-8"))
-    except Exception:
-        send_mm("SEED: ⚠️ не-JSON сообщение получено, пропускаю.")
+        alert: Dict[str, Any] = json.loads(msg.decode("utf-8"))
+    except Exception as e:
+        logging.error(f"Failed to parse JSON message: {e}")
+        send_mm("SEED: ⚠️ Invalid JSON message received, skipping")
         return
-    # 1) роутинг по конфигу → имя плагина + payload-defaults
+    
     plugin_name, payload = resolve_handler(alert)
     if not plugin_name:
-        return send_mm(f"SEED: 🤷 не найден обработчик для type='{alert.get('type')}'")
-    # 2) загрузка и вызов плагина
+        send_mm(f"SEED: 🤷 No handler found for type='{alert.get('type')}'")
+        return
+    
     try:
         mod = __import__(f"plugins.{plugin_name}", fromlist=["run"])
-        # Проверяем наличие функции run в плагине
         if not hasattr(mod, "run"):
-            send_mm(f"SEED: ❌ Плагин `{plugin_name}` не содержит функцию run()")
+            send_mm(f"SEED: ❌ Plugin `{plugin_name}` missing run() function")
             return
-        text = mod.run(alert["host"], payload)   # всегда (host: str, payload: dict) -> str
+        
+        text = mod.run(alert["host"], payload)
         if text:
             send_mm(text)
+            
     except ImportError as e:
-        send_mm(f"SEED: ❌ Ошибка импорта плагина `{plugin_name}`: {e}")
+        logging.error(f"Plugin import error: {e}")
+        send_mm(f"SEED: ❌ Plugin import error `{plugin_name}`: {e}")
     except Exception as e:
-        send_mm(f"SEED: ❌ Ошибка плагина `{plugin_name}`: {e}")
+        logging.error(f"Plugin execution error: {e}")
+        send_mm(f"SEED: ❌ Plugin execution error `{plugin_name}`: {e}")
 
 def main():
     load_settings()      # загрузим конфиг и плагины в память

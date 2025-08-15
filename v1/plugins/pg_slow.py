@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 from typing import Dict, List, Tuple
-from ui_ff import render_panel, bullets
+from v1.ui_format import render_panel, bullets
 from fetchers.fetch_sql import fetch_sql  # твой уже существующий
 
 def run(host: str, payload: Dict) -> str:
