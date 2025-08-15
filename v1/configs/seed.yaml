@@ -1,0 +1,31 @@
+# Группы хостов (если нужно таргетировать overrides по группам)
+groups:
+  mongo-prod:
+    include:
+      - centos-s-1vcpu-512mb-10gb-fra1-01
+  mongo-stage:
+    include:
+      - some-stage-host
+
+# Маршрутизация алёртов → плагины и их payload
+alerts:
+  # инвентаризация ОС (пример, без Mongo)
+  os_basic:
+    plugin: os_basic
+    payload_default: {}
+
+  # горячие Mongo-операции: разные mongo_uri для прод/стейджа
+  mongo_hotspots:
+    plugin: mongo_hot
+    payload_default:
+      mongo_uri: "mongodb://zabbix:zabbix@centos-s-1vcpu-512mb-10gb-fra1-01:27017/?authSource=admin&connect=direct"
+      db: "seed_demo"
+      min_ms: 50
+      limit: 10
+    overrides:
+      - groups: ["mongo-stage"]
+        payload:
+          mongo_uri: "mongodb://zabbix:zabbix@centos-s-1vcpu-512mb-10gb-fra1-01:27017/?authSource=admin&connect=direct"
+          db: "seed_demo"
+          min_ms: 80
+          limit: 5
