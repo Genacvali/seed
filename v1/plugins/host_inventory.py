@@ -10,12 +10,12 @@ SEED plugin: host_inventory (через Telegraf Prometheus exporter).
 """
 
 import os
-from typing import Dict, List
+from typing import Dict, List, Union, Optional
 
 # Берём get_gauge из fetchers.telegraf
 from fetchers.telegraf import get_gauge
 
-def _fmt_bytes(n: float | int | None) -> str:
+def _fmt_bytes(n: Optional[Union[float, int]]) -> str:
     if n is None:
         return "n/a"
     n = float(n)
@@ -25,22 +25,33 @@ def _fmt_bytes(n: float | int | None) -> str:
         n /= 1024
     return f"{n:.1f} EB"
 
-def _percent(v: float | None) -> str:
+def _percent(v: Optional[float]) -> str:
     return f"{v:.0f}%" if isinstance(v, (int, float)) else "n/a"
 
 def run(host: str, payload: Dict) -> str:
     """
     payload:
-      paths: ["/", "/data"]  # какие точки монтирования показывать
-      port:  9216            # если не дефолтный
+      paths: ["/", "/data"]     # какие точки монтирования показывать
+      port:  9216               # если не дефолтный
+      telegraf_url: "http://..."  # URL Telegraf (автоматически из конфига)
     """
     port  = int(payload.get("port") or os.getenv("TELEGRAF_PORT", 9216))
     paths: List[str] = payload.get("paths") or ["/", "/data"]
+    
+    # Используем telegraf_url из payload (автоматически добавленный из групп)
+    telegraf_url = payload.get("telegraf_url")
+    if telegraf_url:
+        # Извлекаем хост и порт из URL
+        import re
+        match = re.match(r"https?://([^:]+):(\d+)", telegraf_url)
+        if match:
+            host = match.group(1)
+            port = int(match.group(2))
 
     # --- RAM ---
     mem_total = get_gauge(host, "mem_total", port=port)
     mem_avail = get_gauge(host, "mem_available", port=port)
-    mem_used  = (mem_total - mem_avail) if (isinstance(mem_total,(int,float)) and isinstance(mem_avail,(int,float))) else None
+    mem_used  = (mem_total - mem_avail) if (isinstance(mem_total, (int, float)) and isinstance(mem_avail, (int, float))) else None
 
     # --- CPU / Load (если есть) ---
     load1  = get_gauge(host, "system_load1", port=port)
@@ -65,7 +76,7 @@ def run(host: str, payload: Dict) -> str:
     lines = []
     lines.append(f"### SEED · Профиль хоста `{host}`")
     # RAM
-    if isinstance(mem_total,(int,float)):
+    if isinstance(mem_total, (int, float)):
         lines.append(f"**RAM:** {_fmt_bytes(mem_used)} / {_fmt_bytes(mem_total)} (free {_fmt_bytes(mem_avail)})")
     else:
         lines.append("**RAM:** n/a")

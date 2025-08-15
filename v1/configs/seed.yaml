@@ -1,11 +1,27 @@
-# Группы хостов (если нужно таргетировать overrides по группам)
+# Группы хостов с их подключениями
 groups:
   mongo-prod:
     include:
       - centos-s-1vcpu-512mb-10gb-fra1-01
+      - prod-mongo-server-2
+      - prod-mongo-server-3
+    connections:
+      mongo_uri: "mongodb://zabbix:zabbix@centos-s-1vcpu-512mb-10gb-fra1-01:27017/?authSource=admin&connect=direct"
+      telegraf_url: "http://centos-s-1vcpu-512mb-10gb-fra1-01:9216/metrics"
   mongo-stage:
     include:
       - some-stage-host
+      - stage-mongo-server-2
+    connections:
+      mongo_uri: "mongodb://stage_user:stage_pass@some-stage-host:27017/?authSource=admin&connect=direct"
+      telegraf_url: "http://some-stage-host:9216/metrics"
+  web-servers:
+    include:
+      - web-server-1
+      - web-server-2
+      - web-server-3
+    connections:
+      telegraf_url: "http://{host}:9216/metrics"  # {host} будет заменен на имя хоста
 
 # Маршрутизация алёртов → плагины и их payload
 alerts:
@@ -19,18 +35,16 @@ alerts:
     payload_default:
       paths: ["/", "/data"]
 
-  # горячие Mongo-операции: разные mongo_uri для прод/стейджа
+  # горячие Mongo-операции: автоматически берет подключения из групп
   mongo_hotspots:
     plugin: mongo_hot
     payload_default:
-      mongo_uri: "mongodb://zabbix:zabbix@centos-s-1vcpu-512mb-10gb-fra1-01:27017/?authSource=admin&connect=direct"
       db: "seed_demo"
       min_ms: 50
       limit: 10
     overrides:
       - groups: ["mongo-stage"]
         payload:
-          mongo_uri: "mongodb://zabbix:zabbix@centos-s-1vcpu-512mb-10gb-fra1-01:27017/?authSource=admin&connect=direct"
           db: "seed_demo"
           min_ms: 80
           limit: 5

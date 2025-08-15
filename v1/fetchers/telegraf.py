@@ -2,23 +2,24 @@
 # -*- coding: utf-8 -*-
 import os, re, requests
 from functools import lru_cache
+from typing import Optional, Union, Dict
 
 TELEGRAF_PORT = int(os.getenv("TELEGRAF_PORT", "9216"))
-VERIFY = bool(int(os.getenv("TELEGRAF_VERIFY_SSL", "0")))
+VERIFY = False  # Упрощено для работы в локальной сети
 
-def _metrics_url(host: str, port: int | None = None) -> str:
+def _metrics_url(host: str, port: Optional[int] = None) -> str:
     p = port or TELEGRAF_PORT
     # обычно это http, если у тебя https — поправь тут
     return f"http://{host}:{p}/metrics"
 
 @lru_cache(maxsize=64)
-def _scrape(host: str, port: int | None = None) -> str:
+def _scrape(host: str, port: Optional[int] = None) -> str:
     url = _metrics_url(host, port)
     r = requests.get(url, timeout=5, verify=VERIFY)
     r.raise_for_status()
     return r.text
 
-def _labels_match(line: str, labels: dict | None) -> bool:
+def _labels_match(line: str, labels: Optional[Dict]) -> bool:
     if not labels: 
         return "{" not in line or True  # допускаем строки без лейблов
     for k, v in labels.items():
@@ -27,7 +28,7 @@ def _labels_match(line: str, labels: dict | None) -> bool:
             return False
     return True
 
-def get_gauge(host: str, metric: str, labels: dict | None = None, port: int | None = None) -> float | None:
+def get_gauge(host: str, metric: str, labels: Optional[Dict] = None, port: Optional[int] = None) -> Optional[float]:
     """
     Возвращает ПЕРВОЕ подходящее значение метрики.
     Пример:

@@ -22,6 +22,18 @@ def _match_host_group(host: str) -> list:
             res.append(gname)
     return res
 
+def get_connection_for_host(host: str, connection_type: str):
+    """Получаем строку подключения для хоста из его группы"""
+    host_groups = _match_host_group(host)
+    for gname in host_groups:
+        group = _CFG.get("groups", {}).get(gname, {})
+        connections = group.get("connections", {})
+        if connection_type in connections:
+            conn_str = connections[connection_type]
+            # Заменяем {host} на реальное имя хоста
+            return conn_str.replace("{host}", host)
+    return None
+
 def resolve_handler(alert: dict):
     """
     Находим для type + host подходящий плагин и payload.
@@ -48,6 +60,21 @@ def resolve_handler(alert: dict):
 
     # Перекрытие из самого события
     payload.update(alert.get("payload") or {})
+
+    # Автоматическое добавление подключений из групп хоста
+    host_connections = {}
+    host_groups = _match_host_group(host)
+    for gname in host_groups:
+        group = _CFG.get("groups", {}).get(gname, {})
+        connections = group.get("connections", {})
+        for conn_type, conn_str in connections.items():
+            # Заменяем {host} на реальное имя хоста
+            host_connections[conn_type] = conn_str.replace("{host}", host)
+    
+    # Добавляем подключения к payload (если еще не заданы)
+    for conn_type, conn_str in host_connections.items():
+        if conn_type not in payload:
+            payload[conn_type] = conn_str
 
     plugin = rule.get("plugin")
     return plugin, payload
