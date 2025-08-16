@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
-import os, requests, urllib3
+import os, requests, urllib3, pathlib
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load .env from parent directory (v1/)
+env_path = pathlib.Path(__file__).resolve().parents[1] / ".env"
+load_dotenv(env_path)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MM_WEBHOOK = os.getenv("MM_WEBHOOK")
