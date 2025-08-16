@@ -41,3 +41,14 @@ clean:
 
 run:
 	cd v1 && python core/agent.py
+
+run-listener:
+	cd v1 && python alert_listener.py
+
+send-test-alert:
+	cd v1 && python send_alert.py --preset os_basic
+
+send-test-alerts:
+	cd v1 && python send_alert.py --preset os_basic
+	cd v1 && python send_alert.py --preset host_inventory  
+	cd v1 && python send_alert.py --preset mongo_hotspots
