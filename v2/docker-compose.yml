@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   rabbitmq:
@@ -50,7 +49,6 @@ services:
 
   worker:
     build: .
-    container_name: seed-worker
     depends_on:
       rabbitmq:
         condition: service_healthy
