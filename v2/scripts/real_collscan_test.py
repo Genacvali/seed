@@ -44,45 +44,158 @@ def create_test_data():
     db.users.insert_many(users)
     print(f"✅ Создано {len(users)} документов")
 
-def generate_collscan_queries():
-    """Генерируем запросы которые точно вызовут COLLSCAN"""
+def create_large_dataset():
+    """Создаем большой датасет для медленных COLLSCAN"""
     client = MongoClient(MONGO_URI)
     db = client[DB_NAME]
     
-    print("🔥 Генерируем COLLSCAN запросы...")
+    # Проверяем размер коллекции
+    count = db.users.count_documents({})
+    if count > 100000:
+        print(f"📊 Большой датасет уже есть: {count:,} документов")
+        return count
     
+    print(f"📝 Создаем большой датасет (текущий размер: {count:,})...")
+    
+    # Создаем батчами по 10k документов
+    batch_size = 10000
+    total_needed = 150000 - count
+    batches = total_needed // batch_size
+    
+    for batch in range(batches):
+        users = []
+        start_id = count + (batch * batch_size)
+        
+        for i in range(batch_size):
+            doc_id = start_id + i
+            users.append({
+                "_id": doc_id,  # Явный ID для предсказуемости
+                "name": f"User{doc_id}",
+                "email": f"user{doc_id}@company{doc_id % 100}.com",
+                "age": 18 + (doc_id % 65),
+                "city": f"City{doc_id % 1000}",
+                "department": f"Dept{doc_id % 50}",
+                "salary": 30000 + (doc_id % 100000),
+                "status": ["active", "inactive", "pending", "archived"][doc_id % 4],
+                "tags": [f"tag{doc_id % 10}", f"skill{doc_id % 20}", f"level{doc_id % 5}"],
+                "created": datetime.utcnow(),
+                # Добавляем большие поля для увеличения размера документа
+                "description": f"Long description for user {doc_id} " * 10,
+                "notes": f"Additional notes and comments for user {doc_id} " * 5
+            })
+        
+        db.users.insert_many(users, ordered=False)
+        new_count = count + ((batch + 1) * batch_size)
+        print(f"  ✅ Вставлено: {new_count:,} документов ({batch+1}/{batches} батчей)")
+    
+    final_count = db.users.count_documents({})
+    print(f"🎯 Итого документов: {final_count:,}")
+    return final_count
+
+def generate_slow_collscan_queries():
+    """Генерируем медленные COLLSCAN запросы (5+ секунд)"""
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    
+    print("🐌 Генерируем МЕДЛЕННЫЕ COLLSCAN запросы...")
+    
+    # Запросы гарантированно медленные на большом датасете
     queries = [
-        # Поиск без индексов
-        {"age": {"$gt": 50}},
-        {"email": "user1000@test.com"},
-        {"city": "City1", "status": "active"},
-        {"name": {"$regex": "User1.*"}},
-        # Сортировка без индекса
-        {"age": {"$gte": 25}},
+        # 1. Regex поиск по всей коллекции
+        {
+            "description": {"$regex": "user 123.*description", "$options": "i"},
+            "name": "Regex поиск по description (100k+ docs)"
+        },
+        
+        # 2. Диапазон + сортировка без индекса  
+        {
+            "query": {"salary": {"$gte": 50000, "$lte": 80000}},
+            "sort": {"created": -1},
+            "limit": 100,
+            "name": "Диапазон salary + сортировка по created"
+        },
+        
+        # 3. Множественные условия без индексов
+        {
+            "age": {"$gte": 30, "$lte": 45},
+            "department": {"$regex": "Dept[1-9]$"},
+            "status": {"$in": ["active", "pending"]},
+            "name": "Множественные условия (age + department + status)"
+        },
+        
+        # 4. Поиск в массиве + другие условия
+        {
+            "tags": {"$in": ["tag5", "skill15"]},
+            "salary": {"$mod": [1000, 0]},  # Очень медленное условие
+            "name": "Поиск в массиве + mod операция"
+        },
+        
+        # 5. Текстовый поиск по нескольким полям
+        {
+            "$or": [
+                {"email": {"$regex": "company[5-9][0-9]@"}},
+                {"notes": {"$regex": "user [0-9]{4,5} "}},
+                {"description": {"$regex": "Long.*user [0-9]{5}"}}
+            ],
+            "name": "OR условие с regex по 3 полям"
+        }
     ]
     
     results = []
-    for i, query in enumerate(queries):
-        print(f"  🔍 Запрос {i+1}: {query}")
+    for i, query_def in enumerate(queries):
+        if isinstance(query_def, dict) and "name" in query_def:
+            query = {k: v for k, v in query_def.items() if k != "name"}
+            query_name = query_def["name"]
+        else:
+            query = query_def
+            query_name = f"Query {i+1}"
+        
+        print(f"  🔥 {i+1}. {query_name}")
+        print(f"     Запрос: {str(query)[:100]}...")
+        
         start_time = time.time()
         
-        # Выполняем запрос
-        if i == 4:  # Последний с сортировкой
-            cursor = db.users.find(query).sort("created", -1).limit(10)
-        else:
-            cursor = db.users.find(query).limit(10)
+        try:
+            # Специальная обработка для запроса с сортировкой
+            if "sort" in query_def:
+                actual_query = query_def["query"]
+                cursor = db.users.find(actual_query).sort(
+                    list(query_def["sort"].items())[0]
+                ).limit(query_def.get("limit", 50))
+            else:
+                cursor = db.users.find(query).limit(50)
+            
+            # Принудительно выполняем запрос
+            docs = list(cursor)
+            duration = (time.time() - start_time) * 1000
+            
+            results.append({
+                "query": query_name,
+                "docs_found": len(docs),
+                "duration_ms": round(duration, 2)
+            })
+            
+            # Цветной вывод в зависимости от времени
+            if duration > 5000:
+                print(f"     🐌 {duration:.0f}ms - ОЧЕНЬ МЕДЛЕННО! ✅")
+            elif duration > 1000:
+                print(f"     ⏱️ {duration:.0f}ms - медленно")
+            else:
+                print(f"     ⚡ {duration:.0f}ms - быстро")
+                
+            print(f"     📊 Найдено документов: {len(docs)}")
+            
+        except Exception as e:
+            print(f"     ❌ Ошибка: {e}")
+            results.append({
+                "query": query_name,
+                "docs_found": 0,
+                "duration_ms": 0,
+                "error": str(e)
+            })
         
-        docs = list(cursor)
-        duration = (time.time() - start_time) * 1000
-        
-        results.append({
-            "query": str(query),
-            "docs_found": len(docs),
-            "duration_ms": round(duration, 2)
-        })
-        
-        print(f"    ⏱️ {duration:.1f}ms, найдено: {len(docs)} документов")
-        time.sleep(0.5)  # Небольшая пауза
+        print()  # Пустая строка для читаемости
+        time.sleep(1)  # Пауза между запросами
     
     return results
 
@@ -211,11 +324,11 @@ def main():
     print("=" * 60)
     
     try:
-        # 1. Создаем тестовые данные
-        create_test_data()
+        # 1. Создаем большой датасет для медленных запросов
+        doc_count = create_large_dataset()
         
-        # 2. Генерируем COLLSCAN запросы
-        query_results = generate_collscan_queries()
+        # 2. Генерируем МЕДЛЕННЫЕ COLLSCAN запросы
+        query_results = generate_slow_collscan_queries()
         
         # 3. Ждем чтобы запросы попали в лог
         print("⏳ Ждем 3 секунды для записи в лог...")
