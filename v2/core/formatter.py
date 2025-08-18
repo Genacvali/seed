@@ -27,32 +27,6 @@ class SEEDFormatter:
         """Создает заголовок S.E.E.D."""
         return f"*S.E.E.D. {title} @ {host}*\n"
     
-    @classmethod 
-    def status_line(cls, label: str, value: str, status: str = "info", 
-                   show_bar: bool = False, percentage: float = None) -> str:
-        """Форматирует строку статуса с иконкой"""
-        icon = cls.STATUS_ICONS.get(status, "•")
-        
-        if show_bar and percentage is not None:
-            bar = cls._create_progress_bar(percentage)
-            return f"{icon} *{label}:* {value} {bar}"
-        else:
-            return f"{icon} *{label}:* {value}"
-    
-    @classmethod
-    def _create_progress_bar(cls, percentage: float, length: int = 10) -> str:
-        """Создает стильный ASCII прогресс-бар"""
-        filled = int((percentage / 100) * length)
-        empty = length - filled
-        
-        if percentage < 50:
-            bar = "█" * filled + "░" * empty
-        elif percentage < 80:
-            bar = "█" * filled + "░" * empty
-        else:
-            bar = "█" * filled + "░" * empty
-            
-        return f"[{bar}]"
     
     @classmethod
     def advice_section(cls, advice_list: List[str]) -> str:
@@ -76,8 +50,7 @@ class SEEDFormatter:
         else:
             icon = cls.STATUS_ICONS["ok"]
             
-        bar = cls._create_progress_bar(percentage)
-        return f"{icon} {path}: {percentage:.0f}% ({used_gb:.1f}/{total_gb:.1f} GB) {bar}"
+        return f"{icon} {path}: {percentage:.0f}% ({used_gb:.1f}/{total_gb:.1f} GB)"
     
     @classmethod
     def system_summary(cls, cpu_info: str, ram_info: str, disk_info: List[str],
