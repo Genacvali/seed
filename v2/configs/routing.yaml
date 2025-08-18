@@ -1,0 +1,15 @@
+# Правила маршрутизации: alertname -> plugin + payload
+alerts:
+  host_inventory:
+    plugin: host_inventory
+    payload:
+      paths: ["/", "/data"]            # какие разделы показать
+      # telegraf_url автоматически подставится из hosts.yaml, если указан
+
+  mongo_collscan:
+    plugin: mongo_hot
+    payload:
+      min_ms: 50
+      limit: 10
+      # источник данных — в самом алерте (annotations) или метрики Telegraf
+      # telegraf_url может понадобиться для контекстных метрик (необязательно)

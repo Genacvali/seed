@@ -1,0 +1,7 @@
+hosts:
+  # можно задать индивидуальный telegraf_url
+  centos-s-1vcpu-512mb-10gb-fra1-01:
+    telegraf_url: "http://centos-s-1vcpu-512mb-10gb-fra1-01:9216/metrics"
+
+# группировки если захотите в будущем
+groups: {}
