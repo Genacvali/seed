@@ -10,6 +10,9 @@
     ],
     "deny": [],
     "ask": [],
-    "defaultMode": "acceptEdits"
+    "defaultMode": "acceptEdits",
+    "additionalDirectories": [
+      "D:\\data\\seed"
+    ]
   }
 }
