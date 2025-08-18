@@ -37,13 +37,14 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
     tip = ""
     try:
         if os.getenv("USE_LLM","0") == "1":
-            ctx = hotspots.splitlines()[:5]
+            ctx = hotspots.splitlines()[2:7]  # Берем строки данных, пропуская заголовки
             prompt = (
-                "Дано несколько медленных операций Mongo (возможно COLLSCAN). "
-                "Сформулируй 1–2 коротких конкретных совета по индексам/фильтрам, ≤160 символов."
-                f"\nПримеры строк:\n{chr(10).join(ctx)}"
+                "Ты DBA-эксперт. Анализируй медленные MongoDB операции с COLLSCAN и дай конкретные советы.\n"
+                f"Данные операций:\n{chr(10).join(ctx)}\n\n"
+                "Дай 2-3 практических совета по оптимизации (создание индексов, изменение запросов). "
+                "Отвечай кратко и по делу, максимум 200 символов."
             )
-            tip = GigaChat().ask(prompt, max_tokens=90).strip()
+            tip = GigaChat().ask(prompt, max_tokens=150).strip()
             tip = " ".join(tip.split())
     except Exception as e:
         tip = f"(LLM недоступен: {e})"
