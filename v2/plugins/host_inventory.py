@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
-import os
-import asyncio
-import aiohttp
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 from fetchers.telegraf import get_gauge
 from core import config
 from core.formatter import FFFormatter
@@ -25,9 +22,9 @@ def _determine_system_situation(cpu_info: str, ram_info: str,
     else:
         return "low_resources"
 
-async def run_async(host: str, labels: Dict[str,str], annotations: Dict[str,str], 
-                   payload: Dict[str,Any]) -> str:
-    """Асинхронная версия плагина для лучшей производительности"""
+
+def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
+    """Синхронная версия плагина"""
     telegraf_url = payload.get("telegraf_url") or config.default_telegraf_url(host)
     paths: List[str] = payload.get("paths") or ["/", "/data"]
     
@@ -83,7 +80,3 @@ async def run_async(host: str, labels: Dict[str,str], annotations: Dict[str,str]
 
     except Exception as e:
         return FFFormatter.error_message(str(e), f"мониторинг хоста {host}")
-
-def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
-    """Синхронная обертка для совместимости"""
-    return asyncio.run(run_async(host, labels, annotations, payload))
