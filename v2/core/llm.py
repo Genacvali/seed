@@ -36,14 +36,14 @@ class GigaChat:
         t = self._load_token()
         if t: return t
         # OAuth
+        import base64
+        auth_key = base64.b64encode(f"{CID}:{CSEC}".encode()).decode()
         headers = {
             "Content-Type":"application/x-www-form-urlencoded",
             "Accept":"application/json",
             "RqUID": str(uuid.uuid4()),
-            "Authorization": "Basic " + f"{CID}:{CSEC}".encode("utf-8").decode("utf-8")
+            "Authorization": f"Basic {auth_key}"
         }
-        # В некоторых инсталляциях Basic не требует base64; если нужно — раскомментируй:
-        # import base64; headers["Authorization"] = "Basic " + base64.b64encode(f"{CID}:{CSEC}".encode()).decode()
         data = {"scope": SCOPE}
         r = requests.post(OAUTH, headers=headers, data=data, timeout=15, verify=VERIFY)
         r.raise_for_status()
