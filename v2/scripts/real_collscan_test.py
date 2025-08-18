@@ -13,8 +13,8 @@ from datetime import datetime
 from pymongo import MongoClient
 from pathlib import Path
 
-# Конфигурация
-MONGO_URI = "mongodb://zabbix:zabbix@localhost:27017/?connect=direct"
+# Конфигурация - будет обновляться в main()
+MONGO_URI = None
 MONGO_LOG_PATH = "/var/log/mongodb/mongod.log"
 SEED_URL = "http://127.0.0.1:8000/alert"
 DB_NAME = "seed_demo"
@@ -196,9 +196,18 @@ def send_real_alert(host, collscans):
 
 def main():
     import sys
+    global MONGO_URI
+    
     host = sys.argv[1] if len(sys.argv) > 1 else "d-dba-mng-adv-msk02"
     
+    # Настраиваем URI в зависимости от хоста
+    if "msk01" in host:
+        MONGO_URI = "mongodb://zabbix:zabbix@d-dba-mng-adv-msk01:27017/?connect=direct"
+    else:
+        MONGO_URI = "mongodb://zabbix:zabbix@d-dba-mng-adv-msk02:27017/?connect=direct"
+    
     print(f"🚀 Тестирование реальных COLLSCAN операций на {host}")
+    print(f"🔗 MongoDB URI: {MONGO_URI}")
     print("=" * 60)
     
     try:
