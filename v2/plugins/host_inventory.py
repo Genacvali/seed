@@ -1,78 +1,89 @@
 # -*- coding: utf-8 -*-
 import os
-from typing import Dict, Any, List
+import asyncio
+import aiohttp
+from typing import Dict, Any, List, Optional, Tuple
 from fetchers.telegraf import get_gauge
 from core import config
-from core.llm import GigaChat
+from core.formatter import FFFormatter
 
-def _fmt_bytes(n):
-    try:
-        n = float(n)
-    except:
-        return "n/a"
-    units = ["B","KB","MB","GB","TB","PB"]
-    i=0
-    while n>=1024 and i<len(units)-1:
-        n/=1024; i+=1
-    return f"{n:.1f} {units[i]}"
+def _fmt_gb(bytes_val: float) -> float:
+    """Конвертирует байты в ГБ"""
+    return bytes_val / (1024**3)
 
-def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
+def _determine_system_situation(cpu_info: str, ram_info: str, 
+                               disk_percentages: List[float]) -> str:
+    """Определяет общую ситуацию с системой"""
+    max_disk = max(disk_percentages) if disk_percentages else 0
+    
+    if max_disk > 90:
+        return "disk_critical"
+    elif max_disk > 80:
+        return "disk_warning"
+    elif not disk_percentages or ram_info == "n/a":
+        return "no_data"
+    else:
+        return "low_resources"
+
+async def run_async(host: str, labels: Dict[str,str], annotations: Dict[str,str], 
+                   payload: Dict[str,Any]) -> str:
+    """Асинхронная версия плагина для лучшей производительности"""
     telegraf_url = payload.get("telegraf_url") or config.default_telegraf_url(host)
     paths: List[str] = payload.get("paths") or ["/", "/data"]
-
-    # RAM
-    mem_total = get_gauge(host, "mem_total", telegraf_url=telegraf_url)
-    mem_avail = get_gauge(host, "mem_available", telegraf_url=telegraf_url)
-    if isinstance(mem_total, float) and isinstance(mem_avail, float):
-        mem_used = mem_total - mem_avail
-        ram_line = f"vRAM: {_fmt_bytes(mem_used)} / {_fmt_bytes(mem_total)}"
-    else:
-        ram_line = "vRAM: n/a"
-
-    # CPU/Load
-    load1 = get_gauge(host, "system_load1", telegraf_url=telegraf_url)
-    load5 = get_gauge(host, "system_load5", telegraf_url=telegraf_url)
-    ncpu  = get_gauge(host, "system_n_cpus", telegraf_url=telegraf_url)
-    if isinstance(load1, float) or isinstance(load5, float):
-        if isinstance(ncpu, float):
-            cpu_line = f"CPU: {int(ncpu)} vCPU • load1 {load1 or 0:.2f} • load5 {load5 or 0:.2f}"
-        else:
-            cpu_line = f"CPU: load1 {load1 or 0:.2f} • load5 {load5 or 0:.2f}"
-    else:
-        cpu_line = "CPU: n/a"
-
-    # Disks
-    disk_lines = []
-    for p in paths:
-        used_pct = get_gauge(host, "disk_used_percent", labels={"path": p}, telegraf_url=telegraf_url)
-        used     = get_gauge(host, "disk_used",         labels={"path": p}, telegraf_url=telegraf_url)
-        total    = get_gauge(host, "disk_total",        labels={"path": p}, telegraf_url=telegraf_url)
-        if not (isinstance(used_pct, float) and isinstance(used, float) and isinstance(total, float)):
-            continue
-        disk_lines.append(f"{p:6} {used_pct:5.0f}% ({_fmt_bytes(used)} / {_fmt_bytes(total)})")
-    if not disk_lines:
-        disk_lines.append("(нет данных по дискам)")
-
-    # LLM совет (кратко)
-    tip = ""
+    
     try:
-        if os.getenv("USE_LLM","0") == "1":
-            ctx = f"load1={load1} load5={load5} disks={';'.join(disk_lines[:2])}"
-            tip = GigaChat().ask(
-                f"Коротко оцени хост: {ctx}. Дай 1–2 практичных совета (<=160 символов), без общих фраз.",
-                max_tokens=90
-            ).strip()
-            tip = " ".join(tip.split())
-    except Exception as e:
-        tip = f"(LLM недоступен: {e})"
+        # Получаем CPU информацию
+        load1 = get_gauge(host, "system_load1", telegraf_url=telegraf_url)
+        load5 = get_gauge(host, "system_load5", telegraf_url=telegraf_url)
+        ncpu = get_gauge(host, "system_n_cpus", telegraf_url=telegraf_url)
+        
+        if isinstance(load1, float) or isinstance(load5, float):
+            if isinstance(ncpu, float):
+                cpu_info = f"{int(ncpu)} cores • LA: {load1 or 0:.2f}/{load5 or 0:.2f}"
+            else:
+                cpu_info = f"LA: {load1 or 0:.2f}/{load5 or 0:.2f}"
+        else:
+            cpu_info = "n/a"
 
-    # Красивый компактный вывод
-    lines = []
-    lines.append(f"**SEED · Host Inventory @ {host}**")
-    lines.append(f"- {cpu_line}")
-    lines.append(f"- {ram_line}")
-    lines.append("**Disks:**")
-    lines += [f"  • {x}" for x in disk_lines]
-    if tip:
-        lines.append("\n**Совет:** " + tip)
-    return "\n".join(lines)
+        # Получаем RAM информацию  
+        mem_total = get_gauge(host, "mem_total", telegraf_url=telegraf_url)
+        mem_avail = get_gauge(host, "mem_available", telegraf_url=telegraf_url)
+        
+        if isinstance(mem_total, float) and isinstance(mem_avail, float):
+            mem_used = mem_total - mem_avail
+            mem_used_gb = _fmt_gb(mem_used)
+            mem_total_gb = _fmt_gb(mem_total)
+            ram_info = f"{mem_used_gb:.1f} GB / {mem_total_gb:.1f} GB"
+        else:
+            ram_info = "n/a"
+
+        # Получаем информацию о дисках
+        disk_info = []
+        disk_percentages = []
+        
+        for path in paths:
+            used_pct = get_gauge(host, "disk_used_percent", labels={"path": path}, telegraf_url=telegraf_url)
+            used = get_gauge(host, "disk_used", labels={"path": path}, telegraf_url=telegraf_url)
+            total = get_gauge(host, "disk_total", labels={"path": path}, telegraf_url=telegraf_url)
+            
+            if isinstance(used_pct, float) and isinstance(used, float) and isinstance(total, float):
+                used_gb = _fmt_gb(used)
+                total_gb = _fmt_gb(total)
+                disk_info.append(FFFormatter.disk_status(path, used_gb, total_gb, used_pct))
+                disk_percentages.append(used_pct)
+
+        # Формируем красивый вывод
+        result = FFFormatter.system_summary(cpu_info, ram_info, disk_info, host)
+        
+        # Определяем ситуацию и добавляем дружелюбный совет
+        situation = _determine_system_situation(cpu_info, ram_info, disk_percentages)
+        advice = FFFormatter.friendly_advice(situation, host)
+        
+        return result + advice
+
+    except Exception as e:
+        return FFFormatter.error_message(str(e), f"мониторинг хоста {host}")
+
+def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
+    """Синхронная обертка для совместимости"""
+    return asyncio.run(run_async(host, labels, annotations, payload))

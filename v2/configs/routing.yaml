@@ -1,21 +1,55 @@
-# Правила маршрутизации: alertname -> plugin + payload
+# 🔮 SEED Routing Configuration - Final Fantasy Style
+# Правила маршрутизации алертов к магическим кристаллам (плагинам)
+
 alerts:
+  # 💾 Мониторинг дискового пространства
+  DiskSpaceHigh:
+    plugin: host_inventory
+    payload:
+      paths: ["/", "/data", "/var", "/opt"]
+      alert_type: "disk_space"
+      priority: "high"
+
+  DiskSpaceCritical:
+    plugin: host_inventory  
+    payload:
+      paths: ["/", "/data", "/var", "/opt"]
+      alert_type: "disk_critical"
+      priority: "critical"
+
+  # 📊 Общий мониторинг хостов
   host_inventory:
     plugin: host_inventory
     payload:
-      paths: ["/", "/data"]            # какие разделы показать
-      # telegraf_url автоматически подставится из hosts.yaml, если указан
+      paths: ["/", "/data"]
+      priority: "normal"
 
+  # 🗄️ MongoDB производительность
   mongo_collscan:
     plugin: mongo_hot
     payload:
       min_ms: 50
       limit: 10
-      # источник данных — в самом алерте (annotations) или метрики Telegraf
-      # telegraf_url может понадобиться для контекстных метрик (необязательно)
+      priority: "high"
 
-  DiskSpaceHigh:
+  MongoSlowQuery:
+    plugin: mongo_hot
+    payload:
+      min_ms: 100
+      limit: 15
+      priority: "high"
+
+  # 🚨 Системные алерты
+  HighCpuLoad:
     plugin: host_inventory
     payload:
-      paths: ["/", "/data"]
-      alert_type: "disk_space"
+      paths: ["/"]
+      alert_type: "cpu_load"
+      priority: "warning"
+
+  HighMemoryUsage:
+    plugin: host_inventory
+    payload:
+      paths: ["/"]
+      alert_type: "memory"
+      priority: "warning"
