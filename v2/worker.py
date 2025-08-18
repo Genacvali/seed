@@ -9,10 +9,9 @@ import signal
 from typing import Dict, Any
 from aio_pika.abc import AbstractIncomingMessage
 
-import core.config as config
 import core.notify as notify
-import core.plugins as plugins
 from core.queue import queue_manager
+from core.alert_processor import process_one_alert
 
 class AlertWorker:
     def __init__(self):
@@ -25,8 +24,8 @@ class AlertWorker:
                 alert_data = json.loads(message.body.decode())
                 retry_count = int(message.headers.get("retry_count", 0))
                 
-                # Обрабатываем алерт (перенесено из app.py)
-                result = self.process_one_alert(alert_data)
+                # Обрабатываем алерт
+                result = process_one_alert(alert_data)
                 
                 if result:
                     notify.send_mm(result)
@@ -63,33 +62,6 @@ class AlertWorker:
             routing_key="seed.alerts.retry"
         )
     
-    def process_one_alert(self, a: Dict[str, Any]) -> str:
-        """Обработка одного алерта (перенесено из app.py)"""
-        labels = a.get("labels", {})
-        annotations = a.get("annotations", {})
-        alertname = labels.get("alertname") or "unknown"
-
-        host = self._host_from_labels(labels)
-        route = config.route_for(alertname, labels)
-        if not route:
-            return f"SEED: 🤷 не найден маршрут для alertname='{alertname}'"
-
-        plugin_name = route["plugin"]
-        payload = route.get("payload", {})
-        payload = config.enrich_with_host_overrides(host, payload)
-
-        fn = plugins.get_plugin(plugin_name)
-        if not fn:
-            return f"SEED: 🤷 не найден плагин '{plugin_name}'"
-
-        return fn(host=host, labels=labels, annotations=annotations, payload=payload)
-    
-    def _host_from_labels(self, labels: Dict[str, str]) -> str:
-        """Извлечение host из labels (перенесено из app.py)"""
-        host = labels.get("host") or labels.get("nodename") or labels.get("instance")
-        if host and ":" in host:
-            host = host.split(":")[0]
-        return host or "unknown"
         
     async def start(self):
         """Запуск worker'а"""
