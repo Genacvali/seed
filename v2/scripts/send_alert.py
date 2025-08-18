@@ -95,10 +95,16 @@ seed_demo.events              find      521ms  plan:COLLSCAN docs:25000 keys:0
 if __name__ == "__main__":
     if len(sys.argv) < 3:
         print("Usage: python scripts/send_alert.py <type> <host>")
-        print(" types: host|mongo")
+        print(" types: host|mongo|real")
+        print("  real - uses real MongoDB COLLSCAN data")
         sys.exit(1)
     t, host = sys.argv[1], sys.argv[2]
-    if t=="host":
+    
+    if t == "host":
         send_host_inventory(host)
+    elif t == "real":
+        print("🔄 Запуск детектора реальных COLLSCAN операций...")
+        import subprocess
+        subprocess.run([sys.executable, "scripts/real_collscan_test.py", host])
     else:
         send_mongo_collscan(host)
