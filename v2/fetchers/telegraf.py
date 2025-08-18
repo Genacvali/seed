@@ -54,7 +54,12 @@ def _get_cached_metrics(url: str) -> Optional[Dict[str, float]]:
     
     # Запрашиваем новые данные
     try:
-        response = requests.get(url, timeout=8, verify=False)
+        response = requests.get(
+            url, 
+            timeout=3,  # Жесткий таймаут 3 секунды
+            verify=False,
+            headers={'Connection': 'close'}  # Не держим соединение
+        )
         if response.status_code != 200:
             return None
             
@@ -62,6 +67,11 @@ def _get_cached_metrics(url: str) -> Optional[Dict[str, float]]:
         _metrics_cache[url] = (current_time, metrics)
         return metrics
         
+    except (requests.exceptions.Timeout, 
+            requests.exceptions.ConnectionError,
+            requests.exceptions.RequestException):
+        # При любой ошибке сети - возвращаем None быстро
+        return None
     except Exception:
         return None
 

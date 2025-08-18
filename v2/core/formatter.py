@@ -6,39 +6,26 @@ SEED Agent Formatter - Final Fantasy Style
 import random
 from typing import Dict, Any, List
 
-class FFFormatter:
-    """Форматировщик в стиле Final Fantasy"""
+class SEEDFormatter:
+    """S.E.E.D. - Smart Event Explainer & Diagnostics Formatter"""
     
-    # Символы и эмодзи в стиле FF
-    CRYSTAL_ICONS = ["💎", "💠", "🔮", "✨", "⭐"]
     STATUS_ICONS = {
-        "ok": "✅",
-        "warning": "⚠️", 
-        "critical": "🔥",
-        "info": "ℹ️",
-        "magic": "🪄"
+        "ok": "✓",
+        "warning": "⚠", 
+        "critical": "✗",
+        "info": "ℹ"
     }
     
-    # Фразы для разных ситуаций в стиле опытного но дружелюбного админа
-    GREETING_PHRASES = [
-        "Кристалл мониторинга активирован! 💎",
-        "Система сканирует горизонт событий... ✨",
-        "Магия DevOps пробуждается! 🪄",
-        "Древние руны мониторинга говорят..."
-    ]
-    
     ADVICE_STARTERS = [
-        "💡 *Совет от бывалого админа:*",
-        "🎯 *Мудрость сервера гласит:*", 
-        "⚡ *Заклинание оптимизации:*",
-        "🔧 *Древняя техника SRE:*"
+        "💡 Совет:",
+        "⚡ Рекомендация:", 
+        "🔧 Действие:"
     ]
     
     @classmethod
-    def header(cls, title: str, host: str, icon: str = "💎") -> str:
-        """Создает заголовок в стиле FF"""
-        crystal = random.choice(cls.CRYSTAL_ICONS)
-        return f"*{crystal} {title} @ {host} {crystal}*\n"
+    def header(cls, title: str, host: str) -> str:
+        """Создает заголовок S.E.E.D."""
+        return f"*S.E.E.D. {title} @ {host}*\n"
     
     @classmethod 
     def status_line(cls, label: str, value: str, status: str = "info", 
@@ -53,16 +40,16 @@ class FFFormatter:
             return f"{icon} *{label}:* {value}"
     
     @classmethod
-    def _create_progress_bar(cls, percentage: float, length: int = 8) -> str:
-        """Создает прогресс-бар в стиле FF"""
+    def _create_progress_bar(cls, percentage: float, length: int = 10) -> str:
+        """Создает простой прогресс-бар"""
         if percentage < 50:
-            fill_char = "🟢"
+            fill_char = "="
         elif percentage < 80:
-            fill_char = "🟡" 
+            fill_char = "-" 
         else:
-            fill_char = "🔴"
+            fill_char = "#"
             
-        empty_char = "⬜"
+        empty_char = "."
         filled = int((percentage / 100) * length)
         empty = length - filled
         
@@ -84,71 +71,66 @@ class FFFormatter:
                    percentage: float) -> str:
         """Форматирует информацию о диске"""
         if percentage > 90:
-            status = "critical"
-            icon = "🔥"
+            icon = cls.STATUS_ICONS["critical"]
         elif percentage > 80:
-            status = "warning" 
-            icon = "⚠️"
+            icon = cls.STATUS_ICONS["warning"]
         else:
-            status = "ok"
-            icon = "✅"
+            icon = cls.STATUS_ICONS["ok"]
             
         bar = cls._create_progress_bar(percentage)
-        return f"{icon} *{path}* {percentage:.0f}% ({used_gb:.1f} GB / {total_gb:.1f} GB) {bar}"
+        return f"{icon} {path}: {percentage:.0f}% ({used_gb:.1f}/{total_gb:.1f} GB) {bar}"
     
     @classmethod
     def system_summary(cls, cpu_info: str, ram_info: str, disk_info: List[str],
                       host: str) -> str:
         """Создает полную сводку системы"""
-        header = cls.header("System Crystal Status", host, "💎")
+        header = cls.header("System Status", host)
         
         lines = [header]
         
-        # CPU с магической терминологией
+        # CPU
         if cpu_info and cpu_info != "n/a":
-            lines.append(f"⚡ *Mana Cores:* {cpu_info}")
+            lines.append(f"CPU: {cpu_info}")
         else:
-            lines.append(f"💤 *Mana Cores:* в режиме сна...")
+            lines.append(f"CPU: n/a")
             
         # RAM 
         if ram_info and ram_info != "n/a":
-            lines.append(f"🧙‍♂️ *Memory Crystal:* {ram_info}")
+            lines.append(f"Memory: {ram_info}")
         else:
-            lines.append(f"❓ *Memory Crystal:* сканирование...")
+            lines.append(f"Memory: n/a")
             
         # Диски
         if disk_info:
-            lines.append(f"💾 *Storage Vaults:*")
+            lines.append(f"Disks:")
             for disk in disk_info:
-                lines.append(f"    {disk}")
+                lines.append(f"  {disk}")
         else:
-            lines.append(f"💾 *Storage Vaults:* исследуются...")
+            lines.append(f"Disks: n/a")
             
         return "\n".join(lines)
     
     @classmethod
     def friendly_advice(cls, situation: str, host: str) -> str:
-        """Генерирует дружелюбные советы в зависимости от ситуации"""
+        """Генерирует советы в зависимости от ситуации"""
         advice_map = {
             "disk_critical": [
-                "Пора освободить место! Удали старые логи и временные файлы",
-                "Рассмотри архивацию данных или расширение диска", 
-                "Настрой ротацию логов - это спасет тебя в будущем"
+                "Критичное заполнение диска - требуется немедленное действие",
+                "Очистите старые логи: find /var/log -name '*.log' -mtime +7 -delete", 
+                "Настройте ротацию логов для предотвращения повторения"
             ],
             "disk_warning": [
-                "Диск заполняется, но паники нет - у нас есть время",
-                "Проверь что занимает больше всего места: du -sh /*", 
-                "Может стоит настроить автоочистку?"
+                "Диск заполняется - мониторьте ситуацию",
+                "Проверьте размеры: du -sh /* | sort -hr", 
+                "Рассмотрите очистку или расширение диска"
             ],
             "low_resources": [
-                "Система работает в штатном режиме - все спокойно",
-                "Мониторь регулярно, но сейчас все хорошо",
-                "Отличная работа с оптимизацией ресурсов!"
+                "Система работает в нормальном режиме",
+                "Продолжайте мониторинг для раннего обнаружения проблем"
             ],
             "no_data": [
-                f"Telegraf на {host} недоступен - проверь подключение",
-                "Возможно нужно поправить конфигурацию мониторинга",
-                "Не волнуйся, как наладим связь - данные появятся"
+                f"Telegraf недоступен на {host} - проверьте подключение",
+                "Убедитесь что сервис telegraf запущен и доступен"
             ]
         }
         
@@ -157,16 +139,13 @@ class FFFormatter:
     
     @classmethod
     def error_message(cls, error: str, context: str = "") -> str:
-        """Дружелюбное сообщение об ошибке"""
-        crystal = random.choice(cls.CRYSTAL_ICONS)
-        
-        msg = f"{crystal} *Упс! Что-то пошло не так...*\n\n"
-        msg += f"🔍 *Детали:* {error}\n"
+        """Сообщение об ошибке"""        
+        msg = f"*S.E.E.D. Error*\n\n"
+        msg += f"Details: {error}\n"
         
         if context:
-            msg += f"📍 *Контекст:* {context}\n"
+            msg += f"Context: {context}\n"
             
-        msg += "\n💡 *Не переживай:* я уже работаю над исправлением!"
-        msg += "\n🤖 Если проблема повторится - проверь логи или пингани админа"
+        msg += "\nПроверьте подключение к источникам данных и конфигурацию"
         
         return msg

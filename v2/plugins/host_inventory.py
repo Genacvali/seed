@@ -2,7 +2,7 @@
 from typing import Dict, Any, List
 from fetchers.telegraf import get_gauge
 from core import config
-from core.formatter import FFFormatter
+from core.formatter import SEEDFormatter
 
 def _fmt_gb(bytes_val: float) -> float:
     """Конвертирует байты в ГБ"""
@@ -66,17 +66,17 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
             if isinstance(used_pct, float) and isinstance(used, float) and isinstance(total, float):
                 used_gb = _fmt_gb(used)
                 total_gb = _fmt_gb(total)
-                disk_info.append(FFFormatter.disk_status(path, used_gb, total_gb, used_pct))
+                disk_info.append(SEEDFormatter.disk_status(path, used_gb, total_gb, used_pct))
                 disk_percentages.append(used_pct)
 
         # Формируем красивый вывод
-        result = FFFormatter.system_summary(cpu_info, ram_info, disk_info, host)
+        result = SEEDFormatter.system_summary(cpu_info, ram_info, disk_info, host)
         
         # Определяем ситуацию и добавляем дружелюбный совет
         situation = _determine_system_situation(cpu_info, ram_info, disk_percentages)
-        advice = FFFormatter.friendly_advice(situation, host)
+        advice = SEEDFormatter.friendly_advice(situation, host)
         
         return result + advice
 
     except Exception as e:
-        return FFFormatter.error_message(str(e), f"мониторинг хоста {host}")
+        return SEEDFormatter.error_message(str(e), f"мониторинг хоста {host}")

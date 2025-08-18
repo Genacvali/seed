@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-MongoDB Performance Analysis Plugin - Final Fantasy Style
-Анализирует медленные запросы и COLLSCAN операции с дружелюбными советами
+MongoDB Performance Analysis Plugin
+S.E.E.D. - Smart Event Explainer & Diagnostics
 """
 import os
 from typing import Dict, Any, List
-from core.formatter import FFFormatter
+from core.formatter import SEEDFormatter
 
 def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
-    """Анализ производительности MongoDB в стиле FF"""
+    """Анализ производительности MongoDB"""
     try:
         threshold = int(payload.get("min_ms", 50))
         limit = int(payload.get("limit", 10))
@@ -21,14 +21,14 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
         plan_summary = labels.get("planSummary") or "UNKNOWN"
         
         # Создаем заголовок
-        result = FFFormatter.header("MongoDB Performance Crystal", host, "🔮")
+        result = SEEDFormatter.header("MongoDB Analysis", host)
         
         # Информация о запросе
-        result += f"🎯 *Quest Target:* `{ns}`\n"
-        result += f"⏱️ *Casting Time:* {duration} ms\n"
-        result += f"📊 *Documents Scanned:* {docs_examined}\n"
-        result += f"🗝️ *Keys Examined:* {keys_examined}\n"
-        result += f"📋 *Spell Pattern:* {plan_summary}\n\n"
+        result += f"Collection: {ns}\n"
+        result += f"Duration: {duration} ms\n"
+        result += f"Documents: {docs_examined}\n"
+        result += f"Keys: {keys_examined}\n"
+        result += f"Plan: {plan_summary}\n\n"
         
         # Определяем серьезность ситуации
         try:
@@ -38,44 +38,41 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
             duration_val = docs_val = 0
             
         if duration_val > 1000 or docs_val > 100000:
-            severity = "critical"
-            status_msg = "🔥 *Критическая ситуация!* Запрос требует немедленного внимания"
+            status_msg = "⚠ Critical performance issue detected"
         elif duration_val > 500 or docs_val > 10000:
-            severity = "warning"  
-            status_msg = "⚠️ *Подозрительная активность* - стоит разобраться"
+            status_msg = "⚠ Performance degradation detected"
         else:
-            severity = "info"
-            status_msg = "✅ *Все под контролем* - но мониторим дальше"
+            status_msg = "✓ Query performance within acceptable range"
             
         result += f"{status_msg}\n\n"
         
-        # Дружелюбные советы от опытного DBA
+        # Практические советы от DBA
         advice = _get_mongo_advice(plan_summary, duration_val, docs_val, ns)
-        result += FFFormatter.advice_section(advice)
+        result += SEEDFormatter.advice_section(advice)
         
         return result
         
     except Exception as e:
-        return FFFormatter.error_message(str(e), f"анализ MongoDB на {host}")
+        return SEEDFormatter.error_message(str(e), f"анализ MongoDB на {host}")
 
 def _get_mongo_advice(plan: str, duration: float, docs: float, namespace: str) -> List[str]:
-    """Генерирует дружелюбные советы от опытного DBA"""
+    """Генерирует практические советы DBA"""
     advice = []
     
     if "COLLSCAN" in plan:
-        advice.append("📝 Обнаружен полный скан коллекции - самое время создать индекс!")
-        advice.append(f"💡 Попробуй: db.{namespace.split('.')[-1]}.createIndex({{field: 1}})")
+        advice.append("Collection scan detected - создайте индекс для оптимизации")
+        advice.append(f"Команда: db.{namespace.split('.')[-1]}.createIndex({{field: 1}})")
         
     if duration > 1000:
-        advice.append("🐌 Запрос работает медленно - проверь план выполнения через explain()")
-        advice.append("⚡ Возможно стоит добавить составной индекс или оптимизировать запрос")
+        advice.append("Медленный запрос - проанализируйте план выполнения")
+        advice.append("Рассмотрите составные индексы или изменение запроса")
         
     if docs > 50000:
-        advice.append("📚 Сканируется слишком много документов")  
-        advice.append("🎯 Добавь более селективные условия в запрос или пагинацию")
+        advice.append("Сканируется большое количество документов")  
+        advice.append("Добавьте селективные условия или пагинацию")
         
     if not advice:
-        advice.append("👍 Запрос выглядит нормально, но всегда есть что улучшить")
-        advice.append("📊 Регулярно анализируй медленные запросы через db.runCommand({profile: 2})")
+        advice.append("Запрос работает в приемлемых пределах")
+        advice.append("Продолжайте мониторинг производительности")
         
     return advice
