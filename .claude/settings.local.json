@@ -6,7 +6,8 @@
       "Bash(python:*)",
       "Bash(pip3 install:*)",
       "Bash(chmod:*)",
-      "Bash(ping:*)"
+      "Bash(ping:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
     "ask": [],
