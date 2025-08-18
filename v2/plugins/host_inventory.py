@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
+import os
 from typing import Dict, Any, List
 from fetchers.telegraf import get_gauge
 from core import config
 from core.formatter import SEEDFormatter
+from core.llm import GigaChat
 
 def _fmt_gb(bytes_val: float) -> float:
     """Конвертирует байты в ГБ"""
@@ -72,11 +74,66 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
         # Формируем красивый вывод
         result = SEEDFormatter.system_summary(cpu_info, ram_info, disk_info, host)
         
-        # Определяем ситуацию и добавляем дружелюбный совет
-        situation = _determine_system_situation(cpu_info, ram_info, disk_percentages)
-        advice = SEEDFormatter.friendly_advice(situation, host)
+        # Получаем умные советы от LLM
+        llm_advice = _get_llm_advice(cpu_info, ram_info, disk_percentages, host)
+        if llm_advice:
+            result += f"\n🤖 Умный совет:\n  • {llm_advice}"
+        else:
+            # Fallback на статические советы
+            situation = _determine_system_situation(cpu_info, ram_info, disk_percentages)
+            advice = SEEDFormatter.friendly_advice(situation, host)
+            result += advice
         
-        return result + advice
+        return result
 
     except Exception as e:
         return SEEDFormatter.error_message(str(e), f"мониторинг хоста {host}")
+
+def _get_llm_advice(cpu_info: str, ram_info: str, disk_percentages: List[float], host: str) -> str:
+    """Получает умные советы от LLM на основе состояния системы"""
+    try:
+        if os.getenv("USE_LLM", "0") != "1":
+            return ""
+            
+        max_disk = max(disk_percentages) if disk_percentages else 0
+        
+        # Формируем контекст для LLM
+        context_parts = []
+        if cpu_info != "n/a":
+            context_parts.append(f"CPU: {cpu_info}")
+        if ram_info != "n/a":
+            context_parts.append(f"Memory: {ram_info}")
+        if disk_percentages:
+            context_parts.append(f"Max disk usage: {max_disk:.1f}%")
+            
+        context = ", ".join(context_parts)
+        
+        # Определяем уровень проблемы
+        if max_disk > 90:
+            problem_level = "критическое заполнение диска"
+        elif max_disk > 80:
+            problem_level = "предупреждение о заполнении диска"
+        else:
+            problem_level = "нормальная работа системы"
+            
+        prompt = f"""Ты опытный DevOps инженер. Анализируешь состояние сервера {host}.
+
+Текущее состояние: {context}
+Основная проблема: {problem_level}
+
+Дай ОДИН конкретный практический совет с командой Linux (максимум 100 символов). 
+Отвечай кратко и по делу, без общих фраз."""
+
+        llm = GigaChat()
+        advice = llm.ask(prompt, max_tokens=80).strip()
+        
+        # Очищаем ответ от лишнего
+        advice = " ".join(advice.split())
+        if len(advice) > 200:
+            advice = advice[:200] + "..."
+            
+        return advice
+        
+    except Exception as e:
+        # При ошибке LLM возвращаем пустую строку - будет fallback
+        return ""

@@ -6,6 +6,7 @@ S.E.E.D. - Smart Event Explainer & Diagnostics
 import os
 from typing import Dict, Any, List
 from core.formatter import SEEDFormatter
+from core.llm import GigaChat
 
 def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: Dict[str,Any]) -> str:
     """Анализ производительности MongoDB"""
@@ -46,9 +47,14 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
             
         result += f"{status_msg}\n\n"
         
-        # Практические советы от DBA
-        advice = _get_mongo_advice(plan_summary, duration_val, docs_val, ns)
-        result += SEEDFormatter.advice_section(advice)
+        # Получаем умные советы от LLM
+        llm_advice = _get_llm_mongo_advice(plan_summary, duration_val, docs_val, ns, host)
+        if llm_advice:
+            result += f"🤖 Умный совет:\n  • {llm_advice}\n"
+        else:
+            # Fallback на статические советы
+            advice = _get_mongo_advice(plan_summary, duration_val, docs_val, ns)
+            result += SEEDFormatter.advice_section(advice)
         
         return result
         
@@ -76,3 +82,43 @@ def _get_mongo_advice(plan: str, duration: float, docs: float, namespace: str) -
         advice.append("📈 Продолжайте мониторинг производительности")
         
     return advice
+
+def _get_llm_mongo_advice(plan: str, duration: float, docs: float, namespace: str, host: str) -> str:
+    """Получает умные советы от LLM для MongoDB"""
+    try:
+        if os.getenv("USE_LLM", "0") != "1":
+            return ""
+            
+        # Формируем контекст для LLM
+        context = f"MongoDB query on {host}: Collection={namespace}, Duration={duration}ms, Documents={docs}, Plan={plan}"
+        
+        # Определяем тип проблемы
+        if "COLLSCAN" in plan:
+            problem_type = "полное сканирование коллекции"
+        elif duration > 1000:
+            problem_type = "медленный запрос"
+        elif docs > 50000:
+            problem_type = "сканирование большого количества документов"
+        else:
+            problem_type = "обычный запрос MongoDB"
+            
+        prompt = f"""Ты опытный MongoDB DBA. Анализируешь производительность запроса.
+
+{context}
+Проблема: {problem_type}
+
+Дай ОДИН конкретный практический совет с MongoDB командой (максимум 120 символов).
+Отвечай кратко и по делу, без объяснений."""
+
+        llm = GigaChat()
+        advice = llm.ask(prompt, max_tokens=100).strip()
+        
+        # Очищаем ответ
+        advice = " ".join(advice.split())
+        if len(advice) > 250:
+            advice = advice[:250] + "..."
+            
+        return advice
+        
+    except Exception as e:
+        return ""

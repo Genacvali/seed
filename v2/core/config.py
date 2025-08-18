@@ -20,9 +20,9 @@ HOSTS   = _yaml(CFG / "hosts.yaml")
 
 def ALERT_TTL() -> int:
     try:
-        return int(os.getenv("ALERT_SUPPRESS_SECONDS", "120"))
+        return int(os.getenv("ALERT_SUPPRESS_SECONDS", "30"))
     except:
-        return 120
+        return 30
 
 def route_for(alertname: str, labels: Dict[str, str]) -> Dict[str, Any]:
     rules = ROUTING.get("alerts") or {}
