@@ -24,11 +24,11 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
         result = SEEDFormatter.header("MongoDB Analysis", host)
         
         # Информация о запросе
-        result += f"Collection: {ns}\n"
-        result += f"Duration: {duration} ms\n"
-        result += f"Documents: {docs_examined}\n"
-        result += f"Keys: {keys_examined}\n"
-        result += f"Plan: {plan_summary}\n\n"
+        result += f"🎯 Collection: {ns}\n"
+        result += f"⏱️ Duration: {duration} ms\n"
+        result += f"📄 Documents: {docs_examined}\n"
+        result += f"🔑 Keys: {keys_examined}\n"
+        result += f"📋 Plan: {plan_summary}\n\n"
         
         # Определяем серьезность ситуации
         try:
@@ -38,11 +38,11 @@ def run(host: str, labels: Dict[str,str], annotations: Dict[str,str], payload: D
             duration_val = docs_val = 0
             
         if duration_val > 1000 or docs_val > 100000:
-            status_msg = "⚠ Critical performance issue detected"
+            status_msg = "🔥 Critical performance issue detected"
         elif duration_val > 500 or docs_val > 10000:
-            status_msg = "⚠ Performance degradation detected"
+            status_msg = "⚠️ Performance degradation detected"
         else:
-            status_msg = "✓ Query performance within acceptable range"
+            status_msg = "✅ Query performance within acceptable range"
             
         result += f"{status_msg}\n\n"
         
@@ -60,19 +60,19 @@ def _get_mongo_advice(plan: str, duration: float, docs: float, namespace: str) -
     advice = []
     
     if "COLLSCAN" in plan:
-        advice.append("Collection scan detected - создайте индекс для оптимизации")
-        advice.append(f"Команда: db.{namespace.split('.')[-1]}.createIndex({{field: 1}})")
+        advice.append("🔍 Collection scan detected - создайте индекс для оптимизации")
+        advice.append(f"📝 Команда: db.{namespace.split('.')[-1]}.createIndex({{field: 1}})")
         
     if duration > 1000:
-        advice.append("Медленный запрос - проанализируйте план выполнения")
-        advice.append("Рассмотрите составные индексы или изменение запроса")
+        advice.append("🐌 Медленный запрос - проанализируйте план выполнения")
+        advice.append("⚡ Рассмотрите составные индексы или изменение запроса")
         
     if docs > 50000:
-        advice.append("Сканируется большое количество документов")  
-        advice.append("Добавьте селективные условия или пагинацию")
+        advice.append("📊 Сканируется большое количество документов")  
+        advice.append("🎯 Добавьте селективные условия или пагинацию")
         
     if not advice:
-        advice.append("Запрос работает в приемлемых пределах")
-        advice.append("Продолжайте мониторинг производительности")
+        advice.append("✅ Запрос работает в приемлемых пределах")
+        advice.append("📈 Продолжайте мониторинг производительности")
         
     return advice

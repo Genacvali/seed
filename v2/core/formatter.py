@@ -10,10 +10,10 @@ class SEEDFormatter:
     """S.E.E.D. - Smart Event Explainer & Diagnostics Formatter"""
     
     STATUS_ICONS = {
-        "ok": "✓",
-        "warning": "⚠", 
-        "critical": "✗",
-        "info": "ℹ"
+        "ok": "✅",
+        "warning": "⚠️", 
+        "critical": "🔥",
+        "info": "ℹ️"
     }
     
     ADVICE_STARTERS = [
@@ -41,19 +41,18 @@ class SEEDFormatter:
     
     @classmethod
     def _create_progress_bar(cls, percentage: float, length: int = 10) -> str:
-        """Создает простой прогресс-бар"""
-        if percentage < 50:
-            fill_char = "="
-        elif percentage < 80:
-            fill_char = "-" 
-        else:
-            fill_char = "#"
-            
-        empty_char = "."
+        """Создает стильный ASCII прогресс-бар"""
         filled = int((percentage / 100) * length)
         empty = length - filled
         
-        return f"[{''.join([fill_char] * filled)}{''.join([empty_char] * empty)}]"
+        if percentage < 50:
+            bar = "█" * filled + "░" * empty
+        elif percentage < 80:
+            bar = "█" * filled + "░" * empty
+        else:
+            bar = "█" * filled + "░" * empty
+            
+        return f"[{bar}]"
     
     @classmethod
     def advice_section(cls, advice_list: List[str]) -> str:
@@ -90,23 +89,23 @@ class SEEDFormatter:
         
         # CPU
         if cpu_info and cpu_info != "n/a":
-            lines.append(f"CPU: {cpu_info}")
+            lines.append(f"🖥️ CPU: {cpu_info}")
         else:
-            lines.append(f"CPU: n/a")
+            lines.append(f"🖥️ CPU: n/a")
             
         # RAM 
         if ram_info and ram_info != "n/a":
-            lines.append(f"Memory: {ram_info}")
+            lines.append(f"🧠 Memory: {ram_info}")
         else:
-            lines.append(f"Memory: n/a")
+            lines.append(f"🧠 Memory: n/a")
             
         # Диски
         if disk_info:
-            lines.append(f"Disks:")
+            lines.append(f"💾 Storage:")
             for disk in disk_info:
                 lines.append(f"  {disk}")
         else:
-            lines.append(f"Disks: n/a")
+            lines.append(f"💾 Storage: n/a")
             
         return "\n".join(lines)
     

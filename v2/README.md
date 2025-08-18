@@ -43,11 +43,11 @@ v2/
 ```
 *S.E.E.D. System Status @ server-01*
 
-CPU: 4 cores • LA: 0.15/0.23
-Memory: 2.1 GB / 8.0 GB  
-Disks:
-  ✓ /: 45% (4.5/10.0 GB) [====......] 
-  ✗ /data: 92% (18.4/20.0 GB) [##########]
+🖥️ CPU: 4 cores • LA: 0.15/0.23
+🧠 Memory: 2.1 GB / 8.0 GB  
+💾 Storage:
+  ✅ /: 45% (4.5/10.0 GB) [████░░░░░░]
+  🔥 /data: 92% (18.4/20.0 GB) [█████████░]
 
 💡 Совет:
   • Критичное заполнение диска - требуется немедленное действие
@@ -58,18 +58,18 @@ Disks:
 ```
 *S.E.E.D. MongoDB Analysis @ db-server*
 
-Collection: myapp.users
-Duration: 1247 ms
-Documents: 156823
-Keys: 0
-Plan: COLLSCAN
+🎯 Collection: myapp.users
+⏱️ Duration: 1247 ms
+📄 Documents: 156823
+🔑 Keys: 0
+📋 Plan: COLLSCAN
 
-⚠ Critical performance issue detected
+🔥 Critical performance issue detected
 
 🔧 Действие:
-  • Collection scan detected - создайте индекс для оптимизации
-  • Команда: db.users.createIndex({field: 1})
-  • Медленный запрос - проанализируйте план выполнения
+  • 🔍 Collection scan detected - создайте индекс для оптимизации
+  • 📝 Команда: db.users.createIndex({field: 1})
+  • 🐌 Медленный запрос - проанализируйте план выполнения
 ```
 
 ## ⚙️ Настройка
