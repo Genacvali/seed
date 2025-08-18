@@ -3,9 +3,10 @@ import requests
 import json
 from datetime import datetime, timezone
 
-# Формат алерта Alertmanager
-test_alert = [
-    {
+# Формат алерта Alertmanager (обернутый в объект)
+test_alert = {
+    "alerts": [
+        {
         "status": "firing",
         "labels": {
             "alertname": "DiskSpaceHigh",
@@ -26,8 +27,9 @@ test_alert = [
         "endsAt": "",
         "generatorURL": "http://prometheus:9090/graph?g0.expr=disk_used+%2F+disk_total+%2A+100+%3E+85",
         "fingerprint": "7c677265703432ca"
-    }
-]
+        }
+    ]
+}
 
 # URL вашего SEED агента
 url = "http://d-dba-mng-adv-msk01:8000/alert"

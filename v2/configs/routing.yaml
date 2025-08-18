@@ -13,3 +13,9 @@ alerts:
       limit: 10
       # источник данных — в самом алерте (annotations) или метрики Telegraf
       # telegraf_url может понадобиться для контекстных метрик (необязательно)
+
+  DiskSpaceHigh:
+    plugin: host_inventory
+    payload:
+      paths: ["/", "/data"]
+      alert_type: "disk_space"
