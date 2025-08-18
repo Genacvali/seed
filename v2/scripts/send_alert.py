@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json, requests, sys
 
-URL = "http://127.0.0.1:8080/alert"
+URL = "http://127.0.0.1:8000/alert"
 
 def send_host_inventory(host):
     data = {
