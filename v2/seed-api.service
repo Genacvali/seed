@@ -1,0 +1,28 @@
+[Unit]
+Description=SEED v2 API Server
+After=network.target redis.service rabbitmq-server.service
+Requires=network.target
+Wants=redis.service rabbitmq-server.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/data/seed/v2
+Environment=PATH=/data/seed/venv/bin
+ExecStart=/data/seed/venv/bin/uvicorn app:app --host 0.0.0.0 --port 8000
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=seed-api
+
+# Безопасность
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/data/seed
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
