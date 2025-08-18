@@ -1,9 +1,16 @@
 # -*- coding: utf-8 -*-
-import os, time, json, re
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+import time, json, re
 from typing import Dict, Any, List
 from fastapi import FastAPI, Request, Response
 from contextlib import asynccontextmanager
-from core import config, notify, plugins
+
+import core.config as config
+import core.notify as notify
+import core.plugins as plugins
 from core.queue import queue_manager
 from core.redis_throttle import RedisThrottler
 

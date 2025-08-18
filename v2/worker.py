@@ -1,11 +1,17 @@
 # -*- coding: utf-8 -*-
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 import asyncio
 import json
-import os
 import signal
 from typing import Dict, Any
 from aio_pika.abc import AbstractIncomingMessage
-from core import config, notify, plugins
+
+import core.config as config
+import core.notify as notify
+import core.plugins as plugins
 from core.queue import queue_manager
 
 class AlertWorker:
