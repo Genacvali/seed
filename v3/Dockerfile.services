@@ -1,0 +1,84 @@
+# =============================================================================
+# SEED Services - RabbitMQ + Redis в одном контейнере
+# =============================================================================
+
+FROM ubuntu:22.04
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    supervisor \
+    redis-server \
+    rabbitmq-server \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Конфигурация Redis
+# =============================================================================
+RUN mkdir -p /var/lib/redis /var/log/redis && \
+    chown redis:redis /var/lib/redis /var/log/redis
+
+# Настройка Redis для работы с supervisor
+RUN sed -i 's/daemonize yes/daemonize no/' /etc/redis/redis.conf && \
+    echo "bind 127.0.0.1" >> /etc/redis/redis.conf && \
+    echo "maxmemory 512mb" >> /etc/redis/redis.conf && \
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf && \
+    echo "appendonly yes" >> /etc/redis/redis.conf
+
+# =============================================================================
+# Конфигурация RabbitMQ  
+# =============================================================================
+RUN mkdir -p /var/lib/rabbitmq /var/log/rabbitmq && \
+    chown rabbitmq:rabbitmq /var/lib/rabbitmq /var/log/rabbitmq
+
+# Включаем RabbitMQ Management UI
+RUN rabbitmq-plugins enable rabbitmq_management
+
+# Создаем пользователя для SEED Agent
+RUN service rabbitmq-server start && \
+    sleep 15 && \
+    rabbitmqctl add_user seed seed_password && \
+    rabbitmqctl set_user_tags seed administrator && \
+    rabbitmqctl set_permissions -p / seed ".*" ".*" ".*" && \
+    service rabbitmq-server stop
+
+# =============================================================================
+# Supervisor конфигурация
+# =============================================================================
+RUN mkdir -p /var/log/supervisor
+
+# Создаем конфигурацию supervisor
+RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
+    echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "logfile=/var/log/supervisor/supervisord.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "pidfile=/var/run/supervisord.pid" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:redis]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=redis-server /etc/redis/redis.conf" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=redis" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/var/log/supervisor/redis.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/var/log/supervisor/redis_error.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "[program:rabbitmq]" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "command=rabbitmq-server" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "user=rabbitmq" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "environment=HOME=\"/var/lib/rabbitmq\",USER=\"rabbitmq\"" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stdout_logfile=/var/log/supervisor/rabbitmq.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "stderr_logfile=/var/log/supervisor/rabbitmq_error.log" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "priority=200" >> /etc/supervisor/conf.d/supervisord.conf
+
+# Открываем порты
+EXPOSE 5672 15672 6379
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD redis-cli ping && rabbitmqctl status || exit 1
+
+# Запускаем supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
