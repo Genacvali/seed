@@ -200,7 +200,7 @@ echo ""
 echo "🎯 Starting SEED Agent..."
 echo "   Config: seed.yaml"
 echo "   URL: http://localhost:8080"
-echo "   RabbitMQ Management: http://localhost:15672 ($RABBITMQ_USER/*****)\"
+echo "   RabbitMQ Management: http://localhost:15672 ($RABBITMQ_USER/*****)"
 
 # Update seed.yaml with current RabbitMQ credentials
 echo "📝 Updating SEED Agent configuration..."
