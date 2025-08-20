@@ -128,20 +128,24 @@ offline_build() {
 FROM python:3.11-slim
 WORKDIR /app
 
-# Копируем wheels и устанавливаем зависимости локально
+# Копируем wheels и устанавливаем ТОЛЬКО основные зависимости
 COPY wheels/ /tmp/wheels/
-RUN echo "Available packages:" && ls /tmp/wheels/ | head -10 && \
+RUN echo "Installing core packages only..." && \
     pip install --no-index --find-links /tmp/wheels/ \
-    fastapi uvicorn aio-pika redis httpx \
-    || echo "Fallback to minimal installation" && \
-    pip install --no-index --find-links /tmp/wheels/ /tmp/wheels/*.whl \
-    || echo "Installing individual wheels" && \
-    pip install --no-index --find-links /tmp/wheels/ \
-    $(find /tmp/wheels/ -name "fastapi*.whl") \
-    $(find /tmp/wheels/ -name "uvicorn*.whl") \
-    $(find /tmp/wheels/ -name "aio_pika*.whl") \
-    $(find /tmp/wheels/ -name "redis*.whl") \
-    $(find /tmp/wheels/ -name "httpx*.whl") && \
+    $(ls /tmp/wheels/fastapi-*.whl | head -1) \
+    $(ls /tmp/wheels/uvicorn-*.whl | head -1) \
+    $(ls /tmp/wheels/redis-*.whl | head -1) \
+    $(ls /tmp/wheels/httpx-*.whl | head -1) \
+    $(ls /tmp/wheels/starlette-*.whl | head -1) \
+    $(ls /tmp/wheels/pydantic-*.whl | head -1) \
+    $(ls /tmp/wheels/typing_extensions-*.whl | head -1) \
+    $(ls /tmp/wheels/click-*.whl | head -1) \
+    $(ls /tmp/wheels/h11-*.whl | head -1) \
+    $(ls /tmp/wheels/anyio-*.whl | head -1) \
+    $(ls /tmp/wheels/certifi-*.whl | head -1) \
+    $(ls /tmp/wheels/sniffio-*.whl | head -1) \
+    || true && \
+    echo "Installed packages:" && pip list && \
     rm -rf /tmp/wheels/
 
 # Копируем код приложения
