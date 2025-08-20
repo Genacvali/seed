@@ -253,6 +253,46 @@ build_allinone() {
     fi
 }
 
+export_allinone() {
+    echo "📦 Экспорт All-in-One образа в tar архив..."
+    
+    # Проверяем наличие образа
+    if ! docker images | grep -q "seed-allinone.*latest"; then
+        echo "❌ Образ seed-allinone:latest не найден!"
+        echo "   Сначала соберите образ: ./deploy.sh build-allinone"
+        exit 1
+    fi
+    
+    # Создаем имя файла с датой
+    EXPORT_FILE="seed-allinone-$(date +%Y%m%d-%H%M%S).tar"
+    
+    echo "💾 Сохраняем образ в файл: $EXPORT_FILE"
+    docker save seed-allinone:latest > "$EXPORT_FILE"
+    
+    if [ $? -eq 0 ]; then
+        FILESIZE=$(ls -lh "$EXPORT_FILE" | awk '{print $5}')
+        echo "✅ Образ экспортирован: $EXPORT_FILE (размер: $FILESIZE)"
+        echo ""
+        echo "📋 Для переноса на сервер без интернета:"
+        echo "   1. Скопируйте файл на целевой сервер:"
+        echo "      scp $EXPORT_FILE user@server:/path/to/destination/"
+        echo ""
+        echo "   2. На целевом сервере загрузите образ:"
+        echo "      docker load < $EXPORT_FILE"
+        echo ""
+        echo "   3. Запустите контейнер:"
+        echo "      docker run -d --name seed-allinone \\"
+        echo "        -p 8080:8080 -p 5672:5672 -p 15672:15672 -p 6379:6379 \\"
+        echo "        -v \$(pwd)/seed.yaml:/app/seed.yaml:ro \\"
+        echo "        -v \$(pwd)/plugins.py:/app/plugins.py:ro \\"
+        echo "        -v \$(pwd)/logs:/app/logs \\"
+        echo "        seed-allinone:latest"
+    else
+        echo "❌ Ошибка экспорта образа"
+        exit 1
+    fi
+}
+
 # Выбор действия
 case "${1:-deploy}" in
     "images")
@@ -280,6 +320,10 @@ case "${1:-deploy}" in
         check_docker
         build_allinone
         ;;
+    "export-allinone")
+        check_docker
+        export_allinone
+        ;;
     "start")
         check_docker
         start_services
@@ -304,7 +348,7 @@ case "${1:-deploy}" in
         curl -s http://localhost:8080/health | python3 -m json.tool 2>/dev/null || echo "Недоступен"
         ;;
     *)
-        echo "Использование: $0 {deploy|images|build|offline-build|build-base|build-from-base|build-allinone|start|stop|logs|status}"
+        echo "Использование: $0 {deploy|images|build|offline-build|build-base|build-from-base|build-allinone|export-allinone|start|stop|logs|status}"
         echo ""
         echo "  deploy          - Полное развертывание (по умолчанию)"
         echo "  images          - Только загрузка образов из tar файлов"
@@ -313,6 +357,7 @@ case "${1:-deploy}" in
         echo "  build-base      - Создать базовый образ с зависимостями"
         echo "  build-from-base - Собрать SEED Agent из базового образа"
         echo "  build-allinone  - Собрать All-in-One контейнер (RabbitMQ+Redis+SEED)"
+        echo "  export-allinone - Экспорт All-in-One образа в tar архив"
         echo "  start           - Только запуск сервисов"
         echo "  stop            - Остановка всех сервисов"
         echo "  logs            - Показать логи"
