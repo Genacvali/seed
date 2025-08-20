@@ -1,0 +1,47 @@
+# =============================================================================
+# Prometheus Configuration for SEED Agent
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# Alertmanager configuration (optional)
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Rules configuration (optional) 
+rule_files: []
+
+# Scrape configurations
+scrape_configs:
+  # SEED Agent metrics
+  - job_name: 'seed-agent'
+    static_configs:
+      - targets: ['seed-agent:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # RabbitMQ metrics (if management plugin provides them)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['seed-rabbitmq:15692']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Redis metrics (if redis_exporter is added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['seed-redis:6379']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

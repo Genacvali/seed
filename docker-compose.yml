@@ -1,0 +1,240 @@
+version: '3.8'
+
+services:
+  # =============================================================================
+  # SEED Agent - Main monitoring service
+  # =============================================================================
+  seed-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: seed-agent
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "8080:8080"
+      
+    # Environment variables
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      
+    # Volume mounts - external config and plugins
+    volumes:
+      - ./seed.yaml:/app/seed.yaml:ro           # Configuration file
+      - ./plugins.py:/app/plugins.py:ro         # Plugins file
+      - ./logs:/app/logs                        # Logs directory
+      
+    # Dependencies
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+        
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
+          
+    # Networks
+    networks:
+      - seed-network
+
+  # =============================================================================
+  # RabbitMQ - Message queue service
+  # =============================================================================
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: seed-rabbitmq
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "5672:5672"     # AMQP port
+      - "15672:15672"   # Management UI
+      
+    # Environment variables
+    environment:
+      - RABBITMQ_DEFAULT_USER=seed
+      - RABBITMQ_DEFAULT_PASS=seed123
+      - RABBITMQ_DEFAULT_VHOST=/
+      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit log_levels [{connection,error},{default,warning}]
+      
+    # Volume mounts - persistent data
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      
+    # Health check
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+          
+    # Networks
+    networks:
+      - seed-network
+
+  # =============================================================================
+  # Redis - Caching and throttling service  
+  # =============================================================================
+  redis:
+    image: redis:7.2-alpine
+    container_name: seed-redis
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "6379:6379"
+      
+    # Command with custom configuration
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    
+    # Volume mounts - persistent data
+    volumes:
+      - redis_data:/data
+      
+    # Health check
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.25'
+        reservations:
+          memory: 128M
+          cpus: '0.1'
+          
+    # Networks
+    networks:
+      - seed-network
+
+  # =============================================================================
+  # Prometheus - Metrics collection (optional)
+  # =============================================================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: seed-prometheus
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "9090:9090"
+      
+    # Volume mounts - configuration and data
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+      
+    # Command with configuration
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=168h'
+      - '--web.enable-lifecycle'
+      
+    # Dependencies
+    depends_on:
+      - seed-agent
+      
+    # Networks
+    networks:
+      - seed-network
+    
+    # Only start if metrics are enabled
+    profiles:
+      - metrics
+
+  # =============================================================================
+  # Grafana - Metrics visualization (optional)
+  # =============================================================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: seed-grafana
+    restart: unless-stopped
+    
+    # Port mapping
+    ports:
+      - "3000:3000"
+      
+    # Environment variables
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+      
+    # Volume mounts - data and configuration
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      
+    # Dependencies
+    depends_on:
+      - prometheus
+      
+    # Networks
+    networks:
+      - seed-network
+    
+    # Only start if metrics are enabled
+    profiles:
+      - metrics
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  seed-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
