@@ -48,8 +48,14 @@ pip install importlib-metadata
 echo "📝 Создание конфигурации для сборки..."
 cat > seed-agent.spec << 'EOF'
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_data_files
 
 block_cipher = None
+
+# Collect metadata files for problematic packages
+datas = []
+datas += collect_data_files('aio_pika')
+datas += collect_data_files('aiormq')
 
 a = Analysis(
     ['seed-agent.py'],
@@ -60,7 +66,7 @@ a = Analysis(
         ('fetchers', 'fetchers'),
         ('seed.yaml', '.'),
         ('plugins.py', '.'),
-    ],
+    ] + datas,
     hiddenimports=[
         'aio_pika',
         'aio_pika.abc',
