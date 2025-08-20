@@ -20,10 +20,10 @@ RUN mkdir -p /var/lib/redis /var/log/redis && \
 
 # Настройка Redis для работы с supervisor (оптимизировано для 512MB RAM)
 RUN sed -i 's/daemonize yes/daemonize no/' /etc/redis/redis.conf && \
-    echo "bind 127.0.0.1" >> /etc/redis/redis.conf && \
-    echo "maxmemory 64mb" >> /etc/redis/redis.conf && \
-    echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf && \
-    echo "appendonly no" >> /etc/redis/redis.conf
+    sed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf || echo "bind 0.0.0.0" >> /etc/redis/redis.conf && \
+    sed -i 's/^maxmemory .*/maxmemory 64mb/' /etc/redis/redis.conf || echo "maxmemory 64mb" >> /etc/redis/redis.conf && \
+    sed -i 's/^appendonly .*/appendonly no/' /etc/redis/redis.conf || echo "appendonly no" >> /etc/redis/redis.conf && \
+    grep -q '^maxmemory-policy' /etc/redis/redis.conf || echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
 
 # =============================================================================
 # Конфигурация RabbitMQ  
@@ -31,8 +31,8 @@ RUN sed -i 's/daemonize yes/daemonize no/' /etc/redis/redis.conf && \
 RUN mkdir -p /var/lib/rabbitmq /var/log/rabbitmq && \
     chown rabbitmq:rabbitmq /var/lib/rabbitmq /var/log/rabbitmq
 
-# Включаем RabbitMQ Management UI
-RUN rabbitmq-plugins enable rabbitmq_management
+# Включаем RabbitMQ Management UI (offline для избежания проблем)
+RUN rabbitmq-plugins --offline enable rabbitmq_management
 
 # Настраиваем RabbitMQ окружение
 ENV RABBITMQ_DEFAULT_USER=seed \
@@ -40,42 +40,36 @@ ENV RABBITMQ_DEFAULT_USER=seed \
     RABBITMQ_DEFAULT_VHOST=/
 
 # Базовая конфигурация RabbitMQ (оптимизировано для низкого потребления RAM)
-RUN bash -c 'cat >> /etc/rabbitmq/rabbitmq.conf <<EOF
-# Сетевые настройки
-loopback_users.guest = false
-listeners.tcp.default = 5672
-management.tcp.port = 15672
-
-# Ограничения ресурсов для 512MB RAM
-vm_memory_high_watermark.relative = 0.2
-disk_free_limit.absolute = 20MB
-
-# Урезаем объём метрик management для экономии памяти
-management.sample_retention_policies.global.minute = 1
-management.sample_retention_policies.global.hour = 0
-management.sample_retention_policies.global.day = 0
-EOF'
+RUN printf "%s\n" \
+"loopback_users.guest = false" \
+"listeners.tcp.default = 5672" \
+"management.tcp.port = 15672" \
+"vm_memory_high_watermark.relative = 0.2" \
+"disk_free_limit.absolute = 20MB" \
+"management.sample_retention_policies.global.minute = 1" \
+"management.sample_retention_policies.global.hour = 0" \
+"management.sample_retention_policies.global.day = 0" \
+>> /etc/rabbitmq/rabbitmq.conf
 
 # =============================================================================
 # RabbitMQ инициализация пользователей
 # =============================================================================
-RUN cat > /usr/local/bin/rabbit-init.sh << 'EOF'
-#!/usr/bin/env bash
-set -e
-echo "Waiting for RabbitMQ to start..."
-until rabbitmq-diagnostics -q ping; do sleep 1; done
-echo "Creating user 'seed' if not exists..."
-if ! rabbitmqctl list_users | grep -q '^seed\b'; then
-  rabbitmqctl add_user seed seed_password
-  rabbitmqctl set_user_tags seed administrator
-  rabbitmqctl set_permissions -p / seed ".*" ".*" ".*"
-  echo "User 'seed' created successfully"
-else
-  echo "User 'seed' already exists"
-fi
-EOF
-
-RUN chmod +x /usr/local/bin/rabbit-init.sh
+RUN printf "%s\n" \
+"#!/usr/bin/env bash" \
+"set -e" \
+"echo 'Waiting for RabbitMQ to start...'" \
+"until rabbitmq-diagnostics -q ping; do sleep 1; done" \
+"echo 'Creating user seed if not exists...'" \
+"if ! rabbitmqctl list_users | grep -q '^seed\b'; then" \
+"  rabbitmqctl add_user seed seed_password || true" \
+"  rabbitmqctl set_user_tags seed administrator" \
+"  rabbitmqctl set_permissions -p / seed '.*' '.*' '.*'" \
+"  echo 'User seed created successfully'" \
+"else" \
+"  echo 'User seed already exists'" \
+"fi" \
+> /usr/local/bin/rabbit-init.sh && \
+chmod +x /usr/local/bin/rabbit-init.sh
 
 # =============================================================================
 # Supervisor конфигурация
