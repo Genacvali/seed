@@ -1,0 +1,29 @@
+# Простой Dockerfile только с основными пакетами
+FROM python:3.11-slim
+WORKDIR /app
+
+# Копируем код
+COPY . .
+
+# Устанавливаем только то что точно есть в wheels
+COPY wheels/ /tmp/wheels/
+RUN pip install --no-index --find-links /tmp/wheels/ \
+    /tmp/wheels/fastapi*.whl \
+    /tmp/wheels/uvicorn*.whl \
+    /tmp/wheels/aio_pika*.whl \
+    /tmp/wheels/redis*.whl \
+    /tmp/wheels/httpx*.whl \
+    || true && \
+    rm -rf /tmp/wheels/
+
+# Создаем пользователя
+RUN useradd -r -s /bin/false seed && \
+    mkdir -p logs && \
+    chown -R seed:seed /app
+
+USER seed
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8080
+
+CMD ["python", "seed-agent.py", "--mode", "both", "--host", "0.0.0.0", "--port", "8080"]

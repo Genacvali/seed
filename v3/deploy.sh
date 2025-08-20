@@ -130,11 +130,18 @@ WORKDIR /app
 
 # Копируем wheels и устанавливаем зависимости локально
 COPY wheels/ /tmp/wheels/
-RUN pip install --no-index --find-links /tmp/wheels/ \
-    fastapi uvicorn aio-pika redis pyyaml httpx structlog prometheus-client \
-    python-dateutil pydantic asyncio-throttle python-dotenv cryptography \
-    || pip install --no-index --find-links /tmp/wheels/ \
-    fastapi uvicorn aio-pika redis pyyaml httpx && \
+RUN echo "Available packages:" && ls /tmp/wheels/ | head -10 && \
+    pip install --no-index --find-links /tmp/wheels/ \
+    fastapi uvicorn aio-pika redis httpx \
+    || echo "Fallback to minimal installation" && \
+    pip install --no-index --find-links /tmp/wheels/ /tmp/wheels/*.whl \
+    || echo "Installing individual wheels" && \
+    pip install --no-index --find-links /tmp/wheels/ \
+    $(find /tmp/wheels/ -name "fastapi*.whl") \
+    $(find /tmp/wheels/ -name "uvicorn*.whl") \
+    $(find /tmp/wheels/ -name "aio_pika*.whl") \
+    $(find /tmp/wheels/ -name "redis*.whl") \
+    $(find /tmp/wheels/ -name "httpx*.whl") && \
     rm -rf /tmp/wheels/
 
 # Копируем код приложения
