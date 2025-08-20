@@ -113,26 +113,47 @@ start_services() {
 offline_build() {
     echo "🔧 Offline сборка SEED Agent (без pip доступа)..."
     
-    # Создаем временный Dockerfile с локальными зависимостями
+    # Проверяем наличие wheels директории
+    if [ ! -d "wheels" ]; then
+        echo "❌ Директория 'wheels' не найдена!"
+        echo "   Скачайте зависимости: pip download -r requirements.txt -d wheels/"
+        exit 1
+    fi
+    
+    # Копируем requirements.txt в wheels для Docker
+    cp requirements.txt wheels/
+    
+    # Создаем временный Dockerfile с установкой из wheels
     cat > Dockerfile.offline << 'EOF'
-FROM python:3.11-slim-with-deps
+FROM python:3.11-slim
 WORKDIR /app
+
+# Копируем wheels и устанавливаем зависимости локально
+COPY wheels/ /tmp/wheels/
+RUN pip install --no-index --find-links /tmp/wheels/ --requirement /tmp/wheels/requirements.txt && \
+    rm -rf /tmp/wheels/
+
+# Копируем код приложения
 COPY . .
+
+# Создаем пользователя
 RUN useradd -r -s /bin/false seed && \
     mkdir -p logs && \
     chown -R seed:seed /app
+
 USER seed
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8080
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
 CMD ["python", "seed-agent.py", "--mode", "both", "--host", "0.0.0.0", "--port", "8080"]
 EOF
     
-    echo "⚠️  ВНИМАНИЕ: Python зависимости НЕ будут установлены!"
-    echo "   Убедитесь что в образе python:3.11-slim уже есть нужные пакеты"
-    echo "   Или установите их на хосте: pip install -r requirements.txt"
+    echo "✅ Используем локальные wheels для установки зависимостей"
+    echo "   Найдено $(ls wheels/*.whl 2>/dev/null | wc -l) wheel файлов"
     
     DOCKER_BUILDKIT=0 docker build -f Dockerfile.offline -t seed-agent:offline .
     rm Dockerfile.offline
