@@ -31,7 +31,7 @@ services:
       - "15672:15672"
     environment:
       - RABBITMQ_DEFAULT_USER=seed
-      - RABBITMQ_DEFAULT_PASS=seed123
+      - RABBITMQ_DEFAULT_PASS=seed_password
       - RABBITMQ_DEFAULT_VHOST=/
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
@@ -56,7 +56,7 @@ services:
       - ./logs:/app/logs
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - RABBITMQ_URL=amqp://seed:seed123@rabbitmq:5672//
+      - RABBITMQ_URL=amqp://seed:seed_password@rabbitmq:5672//
     depends_on:
       redis:
         condition: service_healthy

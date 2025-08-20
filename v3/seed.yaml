@@ -14,7 +14,7 @@ system:
     
   # Alert throttling
   alerts:
-    ttl_seconds: 30          # Suppress duplicate alerts for N seconds
+    ttl_seconds: 120         # Suppress duplicate alerts for N seconds
     max_retries: 3           # Maximum retry attempts for failed alerts
     retry_delay: 10          # Base retry delay in seconds (exponential backoff)
 
@@ -27,7 +27,7 @@ infrastructure:
     host: "rabbitmq"
     port: 5672
     username: "seed"
-    password: "seed123"
+    password: "seed_password"
     vhost: "/"
     
     # Queue configuration
@@ -55,9 +55,21 @@ infrastructure:
 # =============================================================================
 llm:
   enabled: true
-  provider: "ollama"  # ollama, openai, anthropic
+  provider: "gigachat"  # gigachat, ollama, openai, anthropic
   
-  # Ollama settings (local LLM)
+  # GigaChat settings (Sber AI)
+  gigachat:
+    client_id: "e719ac5a-2040-4977-afc7-e120230859ce"
+    client_secret: "e974a550-bd43-4e05-954e-286599998ab0"
+    scope: "GIGACHAT_API_PERS"
+    oauth_url: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+    api_url: "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
+    model: "GigaChat-2"
+    verify_ssl: false
+    token_cache: "/app/logs/gigachat_token.json"
+    timeout: 30
+  
+  # Ollama settings (local LLM) 
   ollama:
     base_url: "http://localhost:11434"
     model: "llama2:7b"
@@ -72,26 +84,26 @@ llm:
   # Prompt templates
   prompts:
     alert_analysis: |
-      You are a system administrator analyzing a monitoring alert.
+      Ты - системный администратор, анализирующий мониторинговый алерт.
       
-      Alert details:
-      - Name: {alertname}
-      - Severity: {severity}
-      - Instance: {instance}
-      - Description: {description}
+      Детали алерта:
+      - Название: {alertname}
+      - Критичность: {severity}
+      - Инстанс: {instance}
+      - Описание: {description}
       
-      Provide:
-      1. Brief summary of the issue (1-2 sentences)
-      2. Potential impact on users/business
-      3. Recommended immediate actions
-      4. Root cause analysis (if possible)
+      Предоставь:
+      1. Краткое описание проблемы (1-2 предложения)
+      2. Потенциальное влияние на пользователей/бизнес
+      3. Рекомендуемые немедленные действия
+      4. Анализ первопричины (если возможно)
       
-      Format the response in clear, actionable language for operations team.
+      Отформатируй ответ ясным, практичным языком для команды эксплуатации.
       
     summary_generation: |
-      Create a concise alert summary for Mattermost notification.
-      Keep it under 200 characters but include key details.
-      Use appropriate emojis for severity level.
+      Создай краткое резюме алерта для уведомления в Mattermost.
+      Держи его в пределах 200 символов, но включай ключевые детали.
+      Используй соответствующие эмодзи для уровня критичности.
 
 # =============================================================================
 # Notification Configuration
@@ -104,10 +116,11 @@ notifications:
   # Mattermost webhook
   mattermost:
     enabled: true
-    webhook_url: "https://your-mattermost.com/hooks/your-webhook-id"  # ЗАМЕНИТЕ НА ВАШ WEBHOOK!
+    webhook_url: "https://mm.sberdevices.ru/hooks/p5777ztncinjxbetyeanw3dwqa"
     channel: "alerts"
     username: "SEED-Agent"
     icon_emoji: ":robot_face:"
+    verify_ssl: false
     
   # Slack webhook (alternative)
   slack:
