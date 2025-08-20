@@ -51,6 +51,49 @@ infrastructure:
     timeout: 30
 
 # =============================================================================
+# LLM Configuration (for intelligent alert processing)
+# =============================================================================
+llm:
+  enabled: true
+  provider: "ollama"  # ollama, openai, anthropic
+  
+  # Ollama settings (local LLM)
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "llama2:7b"
+    timeout: 30
+    
+  # OpenAI settings (если используете)
+  openai:
+    api_key: "your-openai-api-key"
+    model: "gpt-3.5-turbo"
+    base_url: "https://api.openai.com/v1"
+    
+  # Prompt templates
+  prompts:
+    alert_analysis: |
+      You are a system administrator analyzing a monitoring alert.
+      
+      Alert details:
+      - Name: {alertname}
+      - Severity: {severity}
+      - Instance: {instance}
+      - Description: {description}
+      
+      Provide:
+      1. Brief summary of the issue (1-2 sentences)
+      2. Potential impact on users/business
+      3. Recommended immediate actions
+      4. Root cause analysis (if possible)
+      
+      Format the response in clear, actionable language for operations team.
+      
+    summary_generation: |
+      Create a concise alert summary for Mattermost notification.
+      Keep it under 200 characters but include key details.
+      Use appropriate emojis for severity level.
+
+# =============================================================================
 # Notification Configuration
 # =============================================================================
 notifications:
@@ -61,7 +104,7 @@ notifications:
   # Mattermost webhook
   mattermost:
     enabled: true
-    webhook_url: "https://your-mattermost.com/hooks/your-webhook-id"
+    webhook_url: "https://your-mattermost.com/hooks/your-webhook-id"  # ЗАМЕНИТЕ НА ВАШ WEBHOOK!
     channel: "alerts"
     username: "SEED-Agent"
     icon_emoji: ":robot_face:"
