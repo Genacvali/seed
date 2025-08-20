@@ -415,14 +415,25 @@ def main():
         signal.signal(signal.SIGTERM, signal_handler)
         
         # Start server
-        uvicorn.run(
-            app,  # Pass app object directly instead of module string
-            host=host,
-            port=port,
-            log_level=log_level,
-            reload=debug,
-            access_log=True
-        )
+        if debug:
+            # In debug mode, use module string for reload functionality
+            uvicorn.run(
+                "seed-agent:app",
+                host=host,
+                port=port,
+                log_level=log_level,
+                reload=True,
+                access_log=True
+            )
+        else:
+            # In production mode, pass app object directly
+            uvicorn.run(
+                app,
+                host=host,
+                port=port,
+                log_level=log_level,
+                access_log=True
+            )
         
     except Exception as e:
         logger.error(f"Failed to start SEED Agent: {e}")
