@@ -61,45 +61,43 @@ RUN useradd -r -s /bin/false seed && \
 RUN mkdir -p /var/log/supervisor
 
 # Создаем конфигурацию supervisor
-COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
-[supervisord]
-nodaemon=true
-logfile=/var/log/supervisor/supervisord.log
-pidfile=/var/run/supervisord.pid
-user=root
-
-[program:redis]
-command=redis-server /etc/redis/redis.conf
-autostart=true
-autorestart=true
-user=redis
-stdout_logfile=/var/log/supervisor/redis.log
-stderr_logfile=/var/log/supervisor/redis_error.log
-priority=100
-
-[program:rabbitmq]
-command=rabbitmq-server
-autostart=true
-autorestart=true
-user=rabbitmq
-environment=HOME="/var/lib/rabbitmq",USER="rabbitmq"
-stdout_logfile=/var/log/supervisor/rabbitmq.log
-stderr_logfile=/var/log/supervisor/rabbitmq_error.log
-priority=200
-
-[program:seed-agent]
-command=python seed-agent.py --mode both --host 0.0.0.0 --port 8080
-directory=/app
-autostart=true
-autorestart=true
-user=seed
-environment=PYTHONPATH="/app",PYTHONUNBUFFERED="1",REDIS_URL="redis://127.0.0.1:6379/0",RABBITMQ_URL="amqp://seed:seed_password@127.0.0.1:5672//"
-stdout_logfile=/var/log/supervisor/seed-agent.log
-stderr_logfile=/var/log/supervisor/seed-agent_error.log
-priority=300
-startsecs=10
-startretries=3
-EOF
+RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf \
+&& echo "nodaemon=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "logfile=/var/log/supervisor/supervisord.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "pidfile=/var/run/supervisord.pid" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "user=root" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "[program:redis]" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "command=redis-server /etc/redis/redis.conf" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "user=redis" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stdout_logfile=/var/log/supervisor/redis.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stderr_logfile=/var/log/supervisor/redis_error.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "priority=100" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "[program:rabbitmq]" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "command=rabbitmq-server" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "user=rabbitmq" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "environment=HOME=\"/var/lib/rabbitmq\",USER=\"rabbitmq\"" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stdout_logfile=/var/log/supervisor/rabbitmq.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stderr_logfile=/var/log/supervisor/rabbitmq_error.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "priority=200" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "[program:seed-agent]" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "command=python seed-agent.py --mode both --host 0.0.0.0 --port 8080" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "directory=/app" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "user=seed" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "environment=PYTHONPATH=\"/app\",PYTHONUNBUFFERED=\"1\",REDIS_URL=\"redis://127.0.0.1:6379/0\",RABBITMQ_URL=\"amqp://seed:seed_password@127.0.0.1:5672//\"" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stdout_logfile=/var/log/supervisor/seed-agent.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "stderr_logfile=/var/log/supervisor/seed-agent_error.log" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "priority=300" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "startsecs=10" >> /etc/supervisor/conf.d/supervisord.conf \
+&& echo "startretries=3" >> /etc/supervisor/conf.d/supervisord.conf
 
 # Настройки окружения
 ENV PYTHONPATH=/app
