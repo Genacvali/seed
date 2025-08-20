@@ -1,0 +1,120 @@
+# =============================================================================
+# SEED Agent All-in-One Dockerfile
+# Включает RabbitMQ, Redis, SEED Agent и Supervisor в одном контейнере
+# =============================================================================
+
+FROM python:3.11-seed-base
+
+# Устанавливаем системные зависимости
+RUN apt-get update && apt-get install -y \
+    supervisor \
+    redis-server \
+    rabbitmq-server \
+    curl \
+    gnupg \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# =============================================================================
+# Конфигурация Redis
+# =============================================================================
+RUN mkdir -p /var/lib/redis /var/log/redis && \
+    chown redis:redis /var/lib/redis /var/log/redis
+
+# Конфигурация Redis
+RUN echo "bind 127.0.0.1" >> /etc/redis/redis.conf && \
+    echo "maxmemory 256mb" >> /etc/redis/redis.conf && \
+    echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf && \
+    echo "appendonly yes" >> /etc/redis/redis.conf
+
+# =============================================================================
+# Конфигурация RabbitMQ
+# =============================================================================
+RUN mkdir -p /var/lib/rabbitmq /var/log/rabbitmq && \
+    chown rabbitmq:rabbitmq /var/lib/rabbitmq /var/log/rabbitmq
+
+# Включаем RabbitMQ Management
+RUN rabbitmq-plugins enable rabbitmq_management
+
+# Создаем пользователя RabbitMQ
+RUN service rabbitmq-server start && \
+    sleep 15 && \
+    rabbitmqctl add_user seed seed_password && \
+    rabbitmqctl set_user_tags seed administrator && \
+    rabbitmqctl set_permissions -p / seed ".*" ".*" ".*" && \
+    service rabbitmq-server stop
+
+# =============================================================================
+# SEED Agent
+# =============================================================================
+WORKDIR /app
+COPY . .
+
+# Создаем пользователя для SEED Agent
+RUN useradd -r -s /bin/false seed && \
+    mkdir -p /app/logs && \
+    chown -R seed:seed /app
+
+# =============================================================================
+# Supervisor конфигурация
+# =============================================================================
+RUN mkdir -p /var/log/supervisor
+
+# Создаем конфигурацию supervisor
+COPY <<'EOF' /etc/supervisor/conf.d/supervisord.conf
+[supervisord]
+nodaemon=true
+logfile=/var/log/supervisor/supervisord.log
+pidfile=/var/run/supervisord.pid
+user=root
+
+[program:redis]
+command=redis-server /etc/redis/redis.conf
+autostart=true
+autorestart=true
+user=redis
+stdout_logfile=/var/log/supervisor/redis.log
+stderr_logfile=/var/log/supervisor/redis_error.log
+priority=100
+
+[program:rabbitmq]
+command=rabbitmq-server
+autostart=true
+autorestart=true
+user=rabbitmq
+environment=HOME="/var/lib/rabbitmq",USER="rabbitmq"
+stdout_logfile=/var/log/supervisor/rabbitmq.log
+stderr_logfile=/var/log/supervisor/rabbitmq_error.log
+priority=200
+
+[program:seed-agent]
+command=python seed-agent.py --mode both --host 0.0.0.0 --port 8080
+directory=/app
+autostart=true
+autorestart=true
+user=seed
+environment=PYTHONPATH="/app",PYTHONUNBUFFERED="1",REDIS_URL="redis://127.0.0.1:6379/0",RABBITMQ_URL="amqp://seed:seed_password@127.0.0.1:5672//"
+stdout_logfile=/var/log/supervisor/seed-agent.log
+stderr_logfile=/var/log/supervisor/seed-agent_error.log
+priority=300
+startsecs=10
+startretries=3
+EOF
+
+# Настройки окружения
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV REDIS_URL=redis://127.0.0.1:6379/0
+ENV RABBITMQ_URL=amqp://seed:seed_password@127.0.0.1:5672//
+
+# Открываем порты
+EXPOSE 8080 5672 15672 6379
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:8080/health && \
+        redis-cli ping && \
+        rabbitmqctl status || exit 1
+
+# Запускаем supervisor
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

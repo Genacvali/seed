@@ -220,6 +220,39 @@ EOF
     fi
 }
 
+build_allinone() {
+    echo "🔧 Сборка All-in-One контейнера (RabbitMQ + Redis + SEED Agent)..."
+    
+    # Проверяем наличие базового образа
+    if ! docker images | grep -q "python.*3.11-seed-base"; then
+        echo "❌ Базовый образ не найден! Сначала выполните: ./deploy.sh build-base"
+        exit 1
+    fi
+    
+    echo "✅ Собираем All-in-One контейнер"
+    DOCKER_BUILDKIT=0 docker build -f Dockerfile.allinone -t seed-allinone:latest .
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ All-in-One контейнер собран: seed-allinone:latest"
+        echo ""
+        echo "🚀 Для запуска:"
+        echo "   docker run -d --name seed-allinone \\"
+        echo "     -p 8080:8080 -p 5672:5672 -p 15672:15672 -p 6379:6379 \\"
+        echo "     -v \$(pwd)/seed.yaml:/app/seed.yaml:ro \\"
+        echo "     -v \$(pwd)/plugins.py:/app/plugins.py:ro \\"
+        echo "     -v \$(pwd)/logs:/app/logs \\"
+        echo "     seed-allinone:latest"
+        echo ""
+        echo "📊 Доступные сервисы:"
+        echo "   🌐 SEED Agent:        http://localhost:8080"
+        echo "   🐰 RabbitMQ UI:       http://localhost:15672 (seed/seed_password)"
+        echo "   🔴 Redis:             localhost:6379"
+    else
+        echo "❌ Ошибка сборки All-in-One контейнера"
+        exit 1
+    fi
+}
+
 # Выбор действия
 case "${1:-deploy}" in
     "images")
@@ -242,6 +275,10 @@ case "${1:-deploy}" in
     "build-from-base")
         check_docker
         build_from_base
+        ;;
+    "build-allinone")
+        check_docker
+        build_allinone
         ;;
     "start")
         check_docker
@@ -267,7 +304,7 @@ case "${1:-deploy}" in
         curl -s http://localhost:8080/health | python3 -m json.tool 2>/dev/null || echo "Недоступен"
         ;;
     *)
-        echo "Использование: $0 {deploy|images|build|offline-build|build-base|build-from-base|start|stop|logs|status}"
+        echo "Использование: $0 {deploy|images|build|offline-build|build-base|build-from-base|build-allinone|start|stop|logs|status}"
         echo ""
         echo "  deploy          - Полное развертывание (по умолчанию)"
         echo "  images          - Только загрузка образов из tar файлов"
@@ -275,6 +312,7 @@ case "${1:-deploy}" in
         echo "  offline-build   - Сборка SEED Agent БЕЗ pip install"
         echo "  build-base      - Создать базовый образ с зависимостями"
         echo "  build-from-base - Собрать SEED Agent из базового образа"
+        echo "  build-allinone  - Собрать All-in-One контейнер (RabbitMQ+Redis+SEED)"
         echo "  start           - Только запуск сервисов"
         echo "  stop            - Остановка всех сервисов"
         echo "  logs            - Показать логи"

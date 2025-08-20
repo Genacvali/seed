@@ -24,7 +24,7 @@ system:
 infrastructure:
   # RabbitMQ settings
   rabbitmq:
-    host: "rabbitmq"
+    host: "127.0.0.1"  # localhost для all-in-one
     port: 5672
     username: "seed"
     password: "seed_password"
@@ -38,7 +38,7 @@ infrastructure:
       
   # Redis settings (for throttling)
   redis:
-    host: "redis"
+    host: "127.0.0.1"  # localhost для all-in-one
     port: 6379
     db: 0
     password: null
