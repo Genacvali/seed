@@ -106,6 +106,8 @@ a = Analysis(
         # HTTP client
         'httpx',
         'httpx._client',
+        'httpx._config',
+        'httpx._exceptions',
         
         # Logging and monitoring
         'structlog',
