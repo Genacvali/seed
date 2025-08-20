@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   redis:
     image: redis:7.2-alpine
@@ -28,7 +26,6 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: seed
       RABBITMQ_DEFAULT_PASS: seed_password
-      RABBITMQ_VM_MEMORY_HIGH_WATERMARK: 0.8
     ports:
       - "5672:5672"     # AMQP для SEED Agent
       - "15672:15672"   # RabbitMQ Management UI
