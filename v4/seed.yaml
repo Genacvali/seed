@@ -80,7 +80,6 @@ notifications:
   mattermost:
     enabled: true
     webhook_url: "https://mm.sberdevices.ru/hooks/p5777ztncinjxbetyeanw3dwqa"
-    channel: "alerts"
     username: "SEED-Agent"
     icon_emoji: ":robot_face:"
     verify_ssl: false

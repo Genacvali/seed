@@ -1,53 +1,92 @@
-# CLAUDE.md
+# CLAUDE.md - SEED Agent v4
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code when working with this repository.
+
+## Project Overview
+
+SEED Agent v4 is a production-ready monitoring and alerting system with a unified architecture. The agent listens on port 8080, processes alerts through specialized plugins, and sends notifications via multiple channels.
+
+## Current Status
+
+- **Active Version**: v4 (only version in repository)
+- **Agent Status**: Running on port 8080
+- **Infrastructure**: Docker Compose (Redis + RabbitMQ)
+- **Configuration**: `v4/seed.yaml` (single unified config)
 
 ## Project Structure
 
-This is a Python-based monitoring/alerting system called "seed" with a plugin-based architecture:
-
 ```
-v1/
-├── core/           # Core system components (currently empty placeholders)
-│   ├── agent.py    # Main agent orchestrator
-│   ├── bus.py      # Event bus/messaging system
-│   ├── config.py   # Configuration management
-│   ├── llm.py      # LLM integration
-│   └── notifier.py # Notification handling
-├── plugins/        # Plugin implementations (currently empty placeholders)
-│   ├── mongo_hot.py    # MongoDB hotspot monitoring
-│   └── os_basic.py     # Basic OS monitoring
-└── configs/
-    └── seed.yaml   # Main configuration file with alert routing
+v4/
+├── seed-agent.py          # Main agent (HTTP server)
+├── plugins.py             # Plugin implementations
+├── core/                  # Core system modules
+├── fetchers/              # Data fetching (MongoDB, Telegraf)
+├── seed.yaml              # Main configuration
+├── docker-compose.yml     # Infrastructure
+├── start.sh              # Complete startup script
+├── stop.sh               # Shutdown script
+└── build-agent.sh        # Binary build script
 ```
 
-## Configuration System
+## Key Components
 
-The system uses YAML-based configuration (`v1/configs/seed.yaml`) with:
-- **Groups**: Host grouping for targeted overrides (mongo-prod, mongo-stage)
-- **Alerts**: Plugin routing with payload configuration
-  - `os_basic`: OS inventory monitoring
-  - `mongo_hotspots`: MongoDB performance monitoring with configurable thresholds
+### Plugins
+- **host_inventory**: System monitoring via Telegraf metrics
+- **mongo_hot**: MongoDB performance monitoring
 
-Alert configurations support:
-- Default payloads for plugins
-- Group-based overrides for different environments
-- MongoDB connection strings and performance thresholds
+### Notifications
+- **Mattermost**: Enabled with webhook
+- **Slack/Email**: Configured but disabled
+- **GigaChat LLM**: Enabled for alert enhancement
 
-## Development Status
+### Infrastructure
+- **RabbitMQ**: Message queuing (localhost:5672)
+- **Redis**: Throttling and caching (localhost:6379)
+- **HTTP API**: Alert ingestion (localhost:8080)
 
-This appears to be an early-stage project with:
-- Empty Python module files (placeholders for future implementation)
-- Well-defined configuration structure
-- Plugin-based architecture design
-- MongoDB monitoring focus with authentication
+## Configuration
 
-## Architecture Patterns
+All settings are in `v4/seed.yaml`:
+- Host groups with override support
+- Alert routing to plugins
+- Notification channels
+- LLM integration (GigaChat)
+- Infrastructure settings
 
-The system follows a plugin-based event-driven architecture where:
-1. Configuration defines alert routing to plugins
-2. Plugins handle specific monitoring tasks (OS, MongoDB)
-3. Core modules provide orchestration, messaging, and notification capabilities
-4. Environment-specific configurations via group overrides
+## Development Guidelines
 
-When implementing code, follow the established pattern of separating core functionality from plugins, and ensure MongoDB connections use the configured authentication parameters from the YAML configuration.
+1. **Edit existing files** rather than creating new ones
+2. **Use the unified configuration** in `seed.yaml`
+3. **Follow the plugin architecture** for new monitoring capabilities  
+4. **Test with curl** commands to `/alert` endpoint
+5. **Use Docker Compose** for infrastructure services
+
+## Testing
+
+```bash
+# Test alert processing
+curl -X POST http://localhost:8080/alert \
+    -H 'Content-Type: application/json' \
+    -d '{"alertname": "TestAlert", "instance": "localhost"}'
+
+# Check health
+curl http://localhost:8080/health
+
+# View configuration  
+curl http://localhost:8080/config
+```
+
+## Service Management
+
+```bash
+# Start everything
+./start.sh
+
+# Stop everything
+./stop.sh
+
+# Build standalone binary
+./build-agent.sh
+```
+
+The system is production-ready and actively processes alerts with notifications to Mattermost.
