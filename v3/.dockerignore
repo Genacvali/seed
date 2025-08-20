@@ -1,0 +1,14 @@
+# Игнорировать при сборке Docker образа
+logs/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.git/
+.gitignore
+*.md
+*.tar
+*.tar.gz
+deploy.sh
+start.sh
