@@ -248,24 +248,27 @@ for i in {1..30}; do
     echo -n "."
 done
 
+# Detect host IP address
+HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || ip route get 8.8.8.8 2>/dev/null | awk '{print $7}' || echo "localhost")
+
 # Show status
 echo ""
 echo "🎉 SEED Agent v4 Stack Started Successfully!"
 echo ""
 echo "📊 Service Status:"
-echo "   ✅ Redis:      localhost:6379"
-echo "   ✅ RabbitMQ:   localhost:5672"
-echo "   ✅ SEED Agent: http://localhost:8080"
+echo "   ✅ Redis:      $HOST_IP:6379"
+echo "   ✅ RabbitMQ:   $HOST_IP:5672"
+echo "   ✅ SEED Agent: http://$HOST_IP:8080"
 echo ""
 echo "🔗 Web Interfaces:"
-echo "   📈 SEED Health:  http://localhost:8080/health"
-echo "   📊 SEED Config:  http://localhost:8080/config" 
-echo "   📋 SEED Metrics: http://localhost:8080/metrics"
-echo "   🐰 RabbitMQ UI:  http://localhost:15672 ($RABBITMQ_USER/*****)"
+echo "   📈 SEED Health:  http://$HOST_IP:8080/health"
+echo "   📊 SEED Config:  http://$HOST_IP:8080/config" 
+echo "   📋 SEED Metrics: http://$HOST_IP:8080/metrics"
+echo "   🐰 RabbitMQ UI:  http://$HOST_IP:15672 ($RABBITMQ_USER/*****)"
 echo ""
 echo "🧪 Testing:"
 echo "   Run test alerts: python3 test_alerts.py"
-echo "   Send custom alert: curl -X POST http://localhost:8080/alert -H 'Content-Type: application/json' -d '{\"alertname\":\"TestAlert\", \"instance\":\"localhost\"}'"
+echo "   Send custom alert: curl -X POST http://$HOST_IP:8080/alert -H 'Content-Type: application/json' -d '{\"alertname\":\"TestAlert\", \"instance\":\"localhost\"}'"
 echo ""
 echo "📜 Logs:"
 echo "   SEED Agent: tail -f seed-agent.log"
