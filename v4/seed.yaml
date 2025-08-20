@@ -140,6 +140,19 @@ hosts:
       overrides:
         telegraf_url: "http://{host}:9216/metrics"
         paths: ["/", "/tmp"]
+        
+    # Test MongoDB hosts (for demo without real MongoDB)
+    mongo-test:
+      hosts:
+        - "fake-mongo-01"
+        - "fake-mongo-02"
+      overrides:
+        mongo_host: "localhost"
+        mongo_port: 27017
+        username: "test"
+        password: "test"
+        auth_db: "admin"
+        telegraf_url: "http://{host}:9216/metrics"
 
 # =============================================================================
 # Alert Routing Configuration - Maps alert names to plugins
