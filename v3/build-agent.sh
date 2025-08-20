@@ -39,9 +39,10 @@ pip install --upgrade pip
 echo "📦 Установка зависимостей..."
 pip install -r requirements.txt
 
-# Устанавливаем PyInstaller
-echo "⚙️  Установка PyInstaller..."
+# Устанавливаем PyInstaller и зависимости для metadata
+echo "⚙️  Установка PyInstaller и дополнительных пакетов..."
 pip install pyinstaller==6.3.0
+pip install importlib-metadata
 
 # Создаем spec файл для PyInstaller
 echo "📝 Создание конфигурации для сборки..."
@@ -62,17 +63,37 @@ a = Analysis(
     ],
     hiddenimports=[
         'aio_pika',
+        'aio_pika.abc',
+        'aio_pika.connection',
+        'aio_pika.channel',
+        'aio_pika.message',
+        'aio_pika.exchange',
+        'aio_pika.queue',
+        'aio_pika.robust_connection',
+        'aio_pika.robust_channel',
+        'aiormq',
+        'aiormq.abc',
         'asyncio',
         'uvicorn',
+        'uvicorn.workers',
         'fastapi',
+        'fastapi.responses',
         'redis',
+        'redis.asyncio',
         'pymongo',
         'yaml',
         'structlog',
         'prometheus_client',
         'cryptography',
+        'cryptography.fernet',
         'httpx',
-        'pydantic'
+        'httpx._client',
+        'pydantic',
+        'pydantic.main',
+        'pydantic.fields',
+        'dotenv',
+        'dateutil',
+        'dateutil.parser'
     ],
     hookspath=[],
     hooksconfig={},
