@@ -1,0 +1,45 @@
+# =============================================================================
+# SEED Agent v4 Dependencies
+# =============================================================================
+
+# Core web framework
+fastapi>=0.104.1,<0.115.0
+uvicorn[standard]>=0.24.0,<0.31.0
+
+# Async HTTP client
+httpx>=0.25.2,<0.28.0
+
+# Message queue
+aio-pika>=9.3.1,<10.0.0
+
+# Redis client
+redis>=5.0.1,<6.0.0
+
+# MongoDB client
+pymongo>=4.6.0,<5.0.0
+
+# Configuration and utilities
+pyyaml>=6.0.1,<7.0.0
+python-dotenv>=1.0.0,<2.0.0
+
+# Logging and monitoring
+structlog>=23.2.0,<25.0.0
+prometheus-client>=0.19.0,<1.0.0
+
+# Date and time utilities
+python-dateutil==2.8.2
+
+# Data validation
+pydantic>=2.5.0,<3.0.0
+
+# Async utilities
+asyncio-throttle==1.0.2
+
+# Security
+cryptography>=3.4.8,<45.0.0
+
+# Development and testing (optional)
+pytest>=7.4.3,<9.0.0
+pytest-asyncio>=0.21.1,<1.0.0
+black>=23.11.0,<25.0.0
+flake8>=6.1.0,<8.0.0

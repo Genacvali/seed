@@ -1,0 +1,352 @@
+# SEED Agent v4 Configuration
+# Unified configuration with environment variable interpolation
+
+# =============================================================================
+# Environment Configuration
+# =============================================================================
+environment: "${SEED_ENVIRONMENT:development}"  # development, staging, production
+
+# =============================================================================
+# System Configuration
+# =============================================================================
+system:
+  agent:
+    bind_host: "${SEED_HOST:0.0.0.0}"
+    bind_port: ${SEED_PORT:8080}
+    workers: ${SEED_WORKERS:2}
+    debug: ${SEED_DEBUG:false}
+    
+  alerts:
+    ttl_seconds: ${SEED_ALERT_TTL:120}
+    max_retries: ${SEED_ALERT_MAX_RETRIES:3}
+    retry_delay: ${SEED_ALERT_RETRY_DELAY:10}
+
+# =============================================================================
+# Infrastructure Configuration  
+# =============================================================================
+infrastructure:
+  # RabbitMQ settings with environment variable support
+  rabbitmq:
+    host: "${SEED_RABBITMQ_HOST:127.0.0.1}"
+    port: ${SEED_RABBITMQ_PORT:5672}
+    username: "${SEED_RABBITMQ_USERNAME:guest}"
+    password: "${SEED_RABBITMQ_PASSWORD:guest}"
+    vhost: "${SEED_RABBITMQ_VHOST:/}"
+    
+    # Queue configuration
+    queues:
+      alerts: "seed.alerts"
+      retry: "seed.alerts.retry" 
+      dlq: "seed.alerts.dlq"
+      
+  # Redis settings
+  redis:
+    host: "${SEED_REDIS_HOST:127.0.0.1}"
+    port: ${SEED_REDIS_PORT:6379}
+    db: ${SEED_REDIS_DB:0}
+    password: "${SEED_REDIS_PASSWORD:}"
+    
+  # Telegraf settings
+  telegraf:
+    scheme: "${SEED_TELEGRAF_SCHEME:http}"
+    port: ${SEED_TELEGRAF_PORT:9216}
+    endpoint: "${SEED_TELEGRAF_ENDPOINT:/metrics}"
+    timeout: ${SEED_TELEGRAF_TIMEOUT:30}
+
+# =============================================================================
+# LLM Configuration
+# =============================================================================
+llm:
+  enabled: ${SEED_LLM_ENABLED:false}
+  provider: "${SEED_LLM_PROVIDER:gigachat}"
+  
+  # GigaChat settings (Sber AI)
+  gigachat:
+    client_id: "${SEED_GIGACHAT_CLIENT_ID:}"
+    client_secret: "${SEED_GIGACHAT_CLIENT_SECRET:}"
+    scope: "${SEED_GIGACHAT_SCOPE:GIGACHAT_API_PERS}"
+    oauth_url: "${SEED_GIGACHAT_OAUTH_URL:https://ngw.devices.sberbank.ru:9443/api/v2/oauth}"
+    api_url: "${SEED_GIGACHAT_API_URL:https://gigachat.devices.sberbank.ru/api/v1/chat/completions}"
+    model: "${SEED_GIGACHAT_MODEL:GigaChat-2}"
+    verify_ssl: ${SEED_GIGACHAT_VERIFY_SSL:false}
+    token_cache: "${SEED_GIGACHAT_TOKEN_CACHE:/app/logs/gigachat_token.json}"
+    timeout: ${SEED_GIGACHAT_TIMEOUT:30}
+  
+  # OpenAI settings
+  openai:
+    api_key: "${SEED_OPENAI_API_KEY:}"
+    model: "${SEED_OPENAI_MODEL:gpt-3.5-turbo}"
+    base_url: "${SEED_OPENAI_BASE_URL:https://api.openai.com/v1}"
+    timeout: ${SEED_OPENAI_TIMEOUT:30}
+    
+  # Prompt templates
+  prompts:
+    alert_analysis: |
+      Ты - системный администратор, анализирующий мониторинговый алерт.
+      
+      Детали алерта:
+      - Название: {alertname}
+      - Критичность: {severity}
+      - Инстанс: {instance}
+      - Описание: {description}
+      
+      Предоставь:
+      1. Краткое описание проблемы (1-2 предложения)
+      2. Потенциальное влияние на пользователей/бизнес
+      3. Рекомендуемые немедленные действия
+      4. Анализ первопричины (если возможно)
+      
+      Отформатируй ответ ясным, практичным языком для команды эксплуатации.
+      
+    summary_generation: |
+      Создай краткое резюме алерта для уведомления в Mattermost.
+      Держи его в пределах 200 символов, но включай ключевые детали.
+      Используй соответствующие эмодзи для уровня критичности.
+
+# =============================================================================
+# Notification Configuration
+# =============================================================================
+notifications:
+  # Mattermost webhook
+  mattermost:
+    enabled: ${SEED_MATTERMOST_ENABLED:false}
+    webhook_url: "${SEED_MATTERMOST_WEBHOOK_URL:}"
+    channel: "${SEED_MATTERMOST_CHANNEL:alerts}"
+    username: "${SEED_MATTERMOST_USERNAME:SEED-Agent}"
+    icon_emoji: "${SEED_MATTERMOST_ICON::robot_face:}"
+    verify_ssl: ${SEED_MATTERMOST_VERIFY_SSL:true}
+    
+  # Slack webhook
+  slack:
+    enabled: ${SEED_SLACK_ENABLED:false}
+    webhook_url: "${SEED_SLACK_WEBHOOK_URL:}"
+    channel: "${SEED_SLACK_CHANNEL:#alerts}"
+    username: "${SEED_SLACK_USERNAME:SEED-Agent}"
+    
+  # Email notifications (SMTP)
+  email:
+    enabled: ${SEED_EMAIL_ENABLED:false}
+    smtp_host: "${SEED_EMAIL_SMTP_HOST:}"
+    smtp_port: ${SEED_EMAIL_SMTP_PORT:587}
+    smtp_user: "${SEED_EMAIL_SMTP_USER:}"
+    smtp_password: "${SEED_EMAIL_SMTP_PASSWORD:}"
+    from_email: "${SEED_EMAIL_FROM:seed-agent@yourcompany.com}"
+    to_emails:
+      - "${SEED_EMAIL_TO:alerts@yourcompany.com}"
+
+# =============================================================================
+# Host Groups Configuration
+# =============================================================================
+hosts:
+  # Group-based host configuration
+  groups:
+    # Production MongoDB cluster
+    mongo-prod:
+      hosts:
+        - "mongo-prod-01"
+        - "mongo-prod-02" 
+        - "mongo-prod-03"
+      overrides:
+        mongo_host: "${SEED_MONGO_PROD_HOST:mongo-prod-01}"
+        mongo_port: ${SEED_MONGO_PROD_PORT:27017}
+        username: "${SEED_MONGO_PROD_USERNAME:monitoring}"
+        password: "${SEED_MONGO_PROD_PASSWORD:}"
+        auth_db: "${SEED_MONGO_PROD_AUTH_DB:admin}"
+        telegraf_url: "${SEED_MONGO_PROD_TELEGRAF_URL:http://{host}:9216/metrics}"
+        
+    # Staging MongoDB cluster  
+    mongo-stage:
+      hosts:
+        - "mongo-stage-01"
+        - "mongo-stage-02"
+      overrides:
+        mongo_host: "${SEED_MONGO_STAGE_HOST:mongo-stage-01}"
+        mongo_port: ${SEED_MONGO_STAGE_PORT:27017}
+        username: "${SEED_MONGO_STAGE_USERNAME:monitoring}"
+        password: "${SEED_MONGO_STAGE_PASSWORD:}"
+        auth_db: "${SEED_MONGO_STAGE_AUTH_DB:admin}"
+        telegraf_url: "${SEED_MONGO_STAGE_TELEGRAF_URL:http://{host}:9216/metrics}"
+        
+    # Web servers
+    web-servers:
+      hosts:
+        - "web-01"
+        - "web-02"
+        - "web-03"
+      overrides:
+        telegraf_url: "${SEED_WEB_TELEGRAF_URL:http://{host}:9216/metrics}"
+        paths: ["/", "/var/www", "/opt"]
+
+# =============================================================================
+# Alert Routing Configuration
+# =============================================================================
+routing:
+  # Alert name to plugin mapping with payloads
+  alerts:
+    
+    # Disk space monitoring
+    DiskSpaceHigh:
+      plugin: "host_inventory"
+      payload:
+        paths: ["/", "/data", "/var", "/opt"]
+        alert_type: "disk_space"
+        priority: "high"
+        timeout: 30
+        
+    DiskSpaceCritical:
+      plugin: "host_inventory"
+      payload:
+        paths: ["/", "/data", "/var", "/opt"] 
+        alert_type: "disk_critical"
+        priority: "critical"
+        timeout: 30
+        
+    # CPU and memory monitoring
+    HighCpuLoad:
+      plugin: "host_inventory"
+      payload:
+        paths: ["/"]
+        alert_type: "cpu_load"
+        priority: "warning"
+        timeout: 30
+        
+    HighMemoryUsage:
+      plugin: "host_inventory"
+      payload:
+        paths: ["/"]
+        alert_type: "memory"
+        priority: "warning"
+        timeout: 30
+        
+    # General host inventory
+    HostInventory:
+      plugin: "host_inventory"
+      payload:
+        paths: ["/", "/data"]
+        alert_type: "general"
+        priority: "normal"
+        timeout: 30
+        
+    # MongoDB performance monitoring
+    MongoSlowQuery:
+      plugin: "mongo_hot"
+      payload:
+        min_ms: 100
+        limit: 15
+        priority: "high"
+        timeout: 30
+        
+    MongoCollscan:
+      plugin: "mongo_hot" 
+      payload:
+        min_ms: 50
+        limit: 10
+        priority: "high"
+        timeout: 30
+        
+    MongoHighConnections:
+      plugin: "mongo_hot"
+      payload:
+        min_ms: 0
+        limit: 20
+        priority: "warning"
+        timeout: 30
+
+# =============================================================================
+# Plugin-Specific Configuration
+# =============================================================================
+plugins:
+  # Host inventory plugin settings
+  host_inventory:
+    default_paths: ["/", "/data"]
+    default_timeout: 30
+    telegraf_metrics:
+      - "disk_used_percent"
+      - "cpu_usage_idle"
+      - "mem_used_percent"
+      - "system_load1"
+      
+  # MongoDB hotspots plugin settings
+  mongo_hot:
+    default_min_ms: 50
+    default_limit: 10
+    connection_timeout: 10000
+    profiler_enabled: true
+    slow_op_sample_rate: 1.0
+    
+# =============================================================================
+# Logging Configuration
+# =============================================================================
+logging:
+  level: "${SEED_LOG_LEVEL:INFO}"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  
+  # File logging
+  file:
+    enabled: ${SEED_LOG_FILE_ENABLED:true}
+    path: "${SEED_LOG_FILE_PATH:/app/logs/seed-agent.log}"
+    max_size: "${SEED_LOG_FILE_MAX_SIZE:100MB}"
+    backup_count: ${SEED_LOG_FILE_BACKUP_COUNT:5}
+    
+  # Console logging
+  console:
+    enabled: ${SEED_LOG_CONSOLE_ENABLED:true}
+    colored: ${SEED_LOG_CONSOLE_COLORED:true}
+    
+  # Structured logging (JSON)
+  structured:
+    enabled: ${SEED_LOG_STRUCTURED_ENABLED:false}
+    include_extra: ${SEED_LOG_STRUCTURED_INCLUDE_EXTRA:true}
+
+# =============================================================================
+# Health Check Configuration  
+# =============================================================================
+health:
+  enabled: ${SEED_HEALTH_ENABLED:true}
+  interval: ${SEED_HEALTH_INTERVAL:60}
+  
+  checks:
+    rabbitmq:
+      enabled: ${SEED_HEALTH_RABBITMQ_ENABLED:true}
+      timeout: ${SEED_HEALTH_RABBITMQ_TIMEOUT:5}
+      
+    redis:
+      enabled: ${SEED_HEALTH_REDIS_ENABLED:true}
+      timeout: ${SEED_HEALTH_REDIS_TIMEOUT:5}
+      
+    plugins:
+      enabled: ${SEED_HEALTH_PLUGINS_ENABLED:true}
+      test_interval: ${SEED_HEALTH_PLUGINS_INTERVAL:300}
+      
+# =============================================================================
+# Metrics and Monitoring
+# =============================================================================  
+metrics:
+  enabled: ${SEED_METRICS_ENABLED:true}
+  
+  # Prometheus metrics endpoint
+  prometheus:
+    enabled: ${SEED_METRICS_PROMETHEUS_ENABLED:true}
+    path: "${SEED_METRICS_PROMETHEUS_PATH:/metrics}"
+    
+  # Internal metrics
+  internal:
+    alerts_processed: ${SEED_METRICS_ALERTS_PROCESSED:true}
+    plugin_execution_time: ${SEED_METRICS_PLUGIN_EXECUTION_TIME:true}
+    queue_size: ${SEED_METRICS_QUEUE_SIZE:true}
+    error_count: ${SEED_METRICS_ERROR_COUNT:true}
+
+# =============================================================================
+# Development and Testing
+# =============================================================================
+development:
+  debug_mode: ${SEED_DEBUG_MODE:false}
+  
+  # Mock external services for testing
+  mock_services:
+    telegraf: ${SEED_MOCK_TELEGRAF:false}
+    mongodb: ${SEED_MOCK_MONGODB:false}
+    
+  # Test data
+  test_alerts: ${SEED_TEST_ALERTS:false}
+  test_interval: ${SEED_TEST_INTERVAL:300}
