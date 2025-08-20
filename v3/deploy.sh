@@ -130,7 +130,11 @@ WORKDIR /app
 
 # Копируем wheels и устанавливаем зависимости локально
 COPY wheels/ /tmp/wheels/
-RUN pip install --no-index --find-links /tmp/wheels/ --requirement /tmp/wheels/requirements.txt && \
+RUN pip install --no-index --find-links /tmp/wheels/ \
+    fastapi uvicorn aio-pika redis pyyaml httpx structlog prometheus-client \
+    python-dateutil pydantic asyncio-throttle python-dotenv cryptography \
+    || pip install --no-index --find-links /tmp/wheels/ \
+    fastapi uvicorn aio-pika redis pyyaml httpx && \
     rm -rf /tmp/wheels/
 
 # Копируем код приложения
