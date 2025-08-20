@@ -176,6 +176,50 @@ EOF
     echo "✅ Offline образ собран: seed-agent:offline"
 }
 
+build_from_base() {
+    echo "🔧 Сборка SEED Agent из базового образа..."
+    
+    # Проверяем наличие базового образа
+    if ! docker images | grep -q "python.*3.11-seed-base"; then
+        echo "❌ Базовый образ не найден! Сначала выполните: ./deploy.sh build-base"
+        exit 1
+    fi
+    
+    # Создаем Dockerfile использующий базовый образ
+    cat > Dockerfile.from-base << 'EOF'
+FROM python:3.11-seed-base
+
+WORKDIR /app
+COPY . .
+
+# Создаем пользователя
+RUN useradd -r -s /bin/false seed && \
+    mkdir -p logs && \
+    chown -R seed:seed /app
+
+USER seed
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+CMD ["python", "seed-agent.py", "--mode", "both", "--host", "0.0.0.0", "--port", "8080"]
+EOF
+    
+    echo "✅ Собираем SEED Agent из базового образа с зависимостями"
+    DOCKER_BUILDKIT=0 docker build -f Dockerfile.from-base -t seed-agent:offline .
+    rm Dockerfile.from-base
+    
+    if [ $? -eq 0 ]; then
+        echo "✅ SEED Agent собран: seed-agent:offline"
+    else
+        echo "❌ Ошибка сборки SEED Agent"
+        exit 1
+    fi
+}
+
 # Выбор действия
 case "${1:-deploy}" in
     "images")
@@ -189,6 +233,15 @@ case "${1:-deploy}" in
     "offline-build")
         check_docker
         offline_build
+        ;;
+    "build-base")
+        check_docker
+        echo "🐍 Создание базового образа с зависимостями..."
+        ./build-base-image.sh
+        ;;
+    "build-from-base")
+        check_docker
+        build_from_base
         ;;
     "start")
         check_docker
@@ -214,15 +267,17 @@ case "${1:-deploy}" in
         curl -s http://localhost:8080/health | python3 -m json.tool 2>/dev/null || echo "Недоступен"
         ;;
     *)
-        echo "Использование: $0 {deploy|images|build|offline-build|start|stop|logs|status}"
+        echo "Использование: $0 {deploy|images|build|offline-build|build-base|build-from-base|start|stop|logs|status}"
         echo ""
-        echo "  deploy       - Полное развертывание (по умолчанию)"
-        echo "  images       - Только загрузка образов из tar файлов"
-        echo "  build        - Сборка SEED Agent с pip install"
-        echo "  offline-build- Сборка SEED Agent БЕЗ pip install"
-        echo "  start        - Только запуск сервисов"
-        echo "  stop         - Остановка всех сервисов"
-        echo "  logs         - Показать логи"
-        echo "  status       - Показать статус"
+        echo "  deploy          - Полное развертывание (по умолчанию)"
+        echo "  images          - Только загрузка образов из tar файлов"
+        echo "  build           - Сборка SEED Agent с pip install"
+        echo "  offline-build   - Сборка SEED Agent БЕЗ pip install"
+        echo "  build-base      - Создать базовый образ с зависимостями"
+        echo "  build-from-base - Собрать SEED Agent из базового образа"
+        echo "  start           - Только запуск сервисов"
+        echo "  stop            - Остановка всех сервисов"
+        echo "  logs            - Показать логи"
+        echo "  status          - Показать статус"
         ;;
 esac
