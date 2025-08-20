@@ -45,9 +45,7 @@ services:
 
   # SEED Agent
   seed-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: seed-agent:offline  # Используем готовый offline образ
     container_name: seed-agent
     restart: unless-stopped
     ports:

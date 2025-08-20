@@ -8,10 +8,7 @@ FROM python:3.11-slim
 # Рабочая директория
 WORKDIR /app
 
-# Устанавливаем системные зависимости
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+# НЕ устанавливаем curl для offline режима - используем python для health check
 
 # Копируем требования и устанавливаем Python пакеты
 COPY requirements.txt .
@@ -35,9 +32,9 @@ ENV PYTHONUNBUFFERED=1
 # Порт
 EXPOSE 8080
 
-# Health check
+# Health check без curl - используем python
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
 
 # Запуск
 CMD ["python", "seed-agent.py", "--mode", "both", "--host", "0.0.0.0", "--port", "8080"]
