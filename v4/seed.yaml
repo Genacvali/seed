@@ -57,33 +57,33 @@ infrastructure:
 # LLM Configuration (Optional - disabled by default)
 # =============================================================================
 llm:
-  enabled: false
+  enabled: true
   provider: "gigachat"
   
-  # GigaChat settings (Sber AI) - configure if needed
+  # GigaChat settings (Sber AI)
   gigachat:
-    client_id: ""
-    client_secret: ""
+    client_id: "e719ac5a-2040-4977-afc7-e120230859ce"
+    client_secret: "e974a550-bd43-4e05-954e-286599998ab0"
     scope: "GIGACHAT_API_PERS"
     oauth_url: "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
     api_url: "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
     model: "GigaChat-2"
     verify_ssl: false
-    token_cache: "/app/logs/gigachat_token.json"
+    token_cache: "/root/.cache/gigachat_token.json"
     timeout: 30
 
 # =============================================================================
 # Notification Configuration
 # =============================================================================
 notifications:
-  # Mattermost webhook - configure your webhook URL
+  # Mattermost webhook
   mattermost:
-    enabled: false
-    webhook_url: "https://your-mattermost.example.com/hooks/YOUR_WEBHOOK_HERE"
+    enabled: true
+    webhook_url: "https://mm.sberdevices.ru/hooks/p5777ztncinjxbetyeanw3dwqa"
     channel: "alerts"
     username: "SEED-Agent"
     icon_emoji: ":robot_face:"
-    verify_ssl: true
+    verify_ssl: false
     
   # Slack webhook - configure your webhook URL  
   slack:
