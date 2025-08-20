@@ -9,6 +9,34 @@ set -e
 echo "🚀 Starting SEED Agent v4 Complete Stack"
 echo "=========================================="
 
+# Load environment variables from .env file if it exists
+if [ -f ".env" ]; then
+    echo "📄 Loading environment variables from .env file..."
+    export $(grep -v '^#' .env | xargs)
+    echo "✅ Environment variables loaded"
+fi
+
+# RabbitMQ credentials configuration
+echo ""
+echo "🔐 RabbitMQ Configuration"
+echo "You can provide credentials via environment variables or interactive input:"
+echo "   Environment variables: RABBITMQ_USER, RABBITMQ_PASS"
+echo ""
+
+# Get RabbitMQ credentials
+if [ -z "$RABBITMQ_USER" ]; then
+    read -p "RabbitMQ Username [admin]: " RABBITMQ_USER
+    RABBITMQ_USER=${RABBITMQ_USER:-admin}
+fi
+
+if [ -z "$RABBITMQ_PASS" ]; then
+    read -s -p "RabbitMQ Password [admin]: " RABBITMQ_PASS
+    echo ""
+    RABBITMQ_PASS=${RABBITMQ_PASS:-admin}
+fi
+
+echo "✅ Using RabbitMQ credentials: $RABBITMQ_USER/*****"
+
 # Check if we're in the right directory
 if [ ! -f "seed.yaml" ] || [ ! -f "docker-compose.yml" ]; then
     echo "❌ Please run this script from the v4 directory"
@@ -44,6 +72,7 @@ echo ""
 echo "📦 Starting infrastructure services..."
 echo "   - Redis (port 6379)"
 echo "   - RabbitMQ (ports 5672, 15672)"
+echo "   - RabbitMQ User: $RABBITMQ_USER"
 
 # Use docker compose (new syntax) or docker-compose (old syntax)
 if docker compose version &> /dev/null; then
@@ -51,6 +80,10 @@ if docker compose version &> /dev/null; then
 else
     COMPOSE_CMD="docker-compose"
 fi
+
+# Export credentials for docker-compose
+export RABBITMQ_DEFAULT_USER="$RABBITMQ_USER"
+export RABBITMQ_DEFAULT_PASS="$RABBITMQ_PASS"
 
 $COMPOSE_CMD up -d
 
@@ -89,11 +122,11 @@ done
 # Setup RabbitMQ user if needed
 echo ""
 echo "🔐 Configuring RabbitMQ user..."
-docker exec seed-rabbitmq rabbitmqctl list_users | grep -q "^guest" || {
-    docker exec seed-rabbitmq rabbitmqctl add_user guest guest
-    docker exec seed-rabbitmq rabbitmqctl set_user_tags guest administrator
-    docker exec seed-rabbitmq rabbitmqctl set_permissions -p / guest ".*" ".*" ".*"
-    echo "✅ RabbitMQ user configured"
+docker exec seed-rabbitmq rabbitmqctl list_users | grep -q "^$RABBITMQ_USER" || {
+    docker exec seed-rabbitmq rabbitmqctl add_user "$RABBITMQ_USER" "$RABBITMQ_PASS"
+    docker exec seed-rabbitmq rabbitmqctl set_user_tags "$RABBITMQ_USER" administrator
+    docker exec seed-rabbitmq rabbitmqctl set_permissions -p / "$RABBITMQ_USER" ".*" ".*" ".*"
+    echo "✅ RabbitMQ user $RABBITMQ_USER configured"
 }
 
 # Check if SEED Agent binary exists
@@ -126,7 +159,23 @@ echo ""
 echo "🎯 Starting SEED Agent..."
 echo "   Config: seed.yaml"
 echo "   URL: http://localhost:8080"
-echo "   RabbitMQ Management: http://localhost:15672 (guest/guest)"
+echo "   RabbitMQ Management: http://localhost:15672 ($RABBITMQ_USER/*****)
+
+# Update seed.yaml with current RabbitMQ credentials
+echo "📝 Updating SEED Agent configuration..."
+if command -v sed &> /dev/null; then
+    # Use sed if available (Linux/macOS)
+    sed -i.bak "s/username: \".*\"/username: \"$RABBITMQ_USER\"/" seed.yaml
+    sed -i.bak "s/password: \".*\"/password: \"$RABBITMQ_PASS\"/" seed.yaml
+    rm -f seed.yaml.bak
+else
+    # Fallback method using temporary file
+    awk -v user="$RABBITMQ_USER" -v pass="$RABBITMQ_PASS" '
+        /username:/ { print "    username: \"" user "\""; next }
+        /password:/ { print "    password: \"" pass "\""; next }
+        { print }
+    ' seed.yaml > seed.yaml.tmp && mv seed.yaml.tmp seed.yaml
+fi
 
 # Start in background with logging
 ./dist/seed-agent --config seed.yaml > seed-agent.log 2>&1 &
@@ -171,7 +220,7 @@ echo "🔗 Web Interfaces:"
 echo "   📈 SEED Health:  http://localhost:8080/health"
 echo "   📊 SEED Config:  http://localhost:8080/config" 
 echo "   📋 SEED Metrics: http://localhost:8080/metrics"
-echo "   🐰 RabbitMQ UI:  http://localhost:15672 (guest/guest)"
+echo "   🐰 RabbitMQ UI:  http://localhost:15672 ($RABBITMQ_USER/*****)"
 echo ""
 echo "🧪 Testing:"
 echo "   Run test alerts: python3 test_alerts.py"
