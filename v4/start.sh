@@ -119,15 +119,56 @@ for i in {1..60}; do
     sleep 1
 done
 
+# Wait for RabbitMQ management to be fully ready
+echo -n "   RabbitMQ Management: "
+for i in {1..30}; do
+    if docker exec seed-rabbitmq rabbitmqctl list_users &>/dev/null; then
+        echo "✅ Ready"
+        break
+    fi
+    if [ $i -eq 30 ]; then
+        echo "❌ Timeout"
+        exit 1
+    fi
+    sleep 2
+done
+
 # Setup RabbitMQ user if needed
 echo ""
 echo "🔐 Configuring RabbitMQ user..."
-docker exec seed-rabbitmq rabbitmqctl list_users | grep -q "^$RABBITMQ_USER" || {
-    docker exec seed-rabbitmq rabbitmqctl add_user "$RABBITMQ_USER" "$RABBITMQ_PASS"
-    docker exec seed-rabbitmq rabbitmqctl set_user_tags "$RABBITMQ_USER" administrator
-    docker exec seed-rabbitmq rabbitmqctl set_permissions -p / "$RABBITMQ_USER" ".*" ".*" ".*"
-    echo "✅ RabbitMQ user $RABBITMQ_USER configured"
-}
+
+# Check if user already exists
+if docker exec seed-rabbitmq rabbitmqctl list_users | grep -q "^$RABBITMQ_USER"; then
+    echo "✅ RabbitMQ user $RABBITMQ_USER already exists"
+else
+    echo "📝 Creating RabbitMQ user $RABBITMQ_USER..."
+    
+    # Create user
+    if docker exec seed-rabbitmq rabbitmqctl add_user "$RABBITMQ_USER" "$RABBITMQ_PASS"; then
+        echo "   ✅ User created"
+    else
+        echo "   ❌ Failed to create user"
+        exit 1
+    fi
+    
+    # Set administrator tag
+    if docker exec seed-rabbitmq rabbitmqctl set_user_tags "$RABBITMQ_USER" administrator; then
+        echo "   ✅ Administrator privileges granted"
+    else
+        echo "   ❌ Failed to set administrator privileges"
+        exit 1
+    fi
+    
+    # Set permissions
+    if docker exec seed-rabbitmq rabbitmqctl set_permissions -p / "$RABBITMQ_USER" ".*" ".*" ".*"; then
+        echo "   ✅ Permissions configured"
+    else
+        echo "   ❌ Failed to set permissions"
+        exit 1
+    fi
+    
+    echo "✅ RabbitMQ user $RABBITMQ_USER configured successfully"
+fi
 
 # Check if SEED Agent binary exists
 if [ ! -f "dist/seed-agent" ]; then
