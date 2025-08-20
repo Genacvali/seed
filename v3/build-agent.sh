@@ -48,14 +48,18 @@ pip install importlib-metadata
 echo "📝 Создание конфигурации для сборки..."
 cat > seed-agent.spec << 'EOF'
 # -*- mode: python ; coding: utf-8 -*-
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_submodules, copy_metadata
 
 block_cipher = None
 
-# Collect metadata files for problematic packages
+# Collect all submodules and metadata for problematic packages
+hiddenimports_auto = []
+hiddenimports_auto += collect_submodules('aio_pika')
+hiddenimports_auto += collect_submodules('aiormq')
+
 datas = []
-datas += collect_data_files('aio_pika')
-datas += collect_data_files('aiormq')
+datas += copy_metadata('aio_pika')
+datas += copy_metadata('aiormq')
 
 a = Analysis(
     ['seed-agent.py'],
@@ -68,17 +72,6 @@ a = Analysis(
         ('plugins.py', '.'),
     ] + datas,
     hiddenimports=[
-        'aio_pika',
-        'aio_pika.abc',
-        'aio_pika.connection',
-        'aio_pika.channel',
-        'aio_pika.message',
-        'aio_pika.exchange',
-        'aio_pika.queue',
-        'aio_pika.robust_connection',
-        'aio_pika.robust_channel',
-        'aiormq',
-        'aiormq.abc',
         'asyncio',
         'uvicorn',
         'uvicorn.workers',
@@ -100,7 +93,7 @@ a = Analysis(
         'dotenv',
         'dateutil',
         'dateutil.parser'
-    ],
+    ] + hiddenimports_auto,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
