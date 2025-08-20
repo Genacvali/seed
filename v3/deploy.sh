@@ -113,9 +113,9 @@ start_services() {
 offline_build() {
     echo "🔧 Offline сборка SEED Agent (без pip доступа)..."
     
-    # Создаем временный Dockerfile без pip install и без curl
+    # Создаем временный Dockerfile с локальными зависимостями
     cat > Dockerfile.offline << 'EOF'
-FROM python:3.11-slim
+FROM python:3.11-slim-with-deps
 WORKDIR /app
 COPY . .
 RUN useradd -r -s /bin/false seed && \
