@@ -21,7 +21,7 @@ RUN mkdir -p /var/lib/redis /var/log/redis && \
 # Настройка Redis для работы с supervisor (оптимизировано для 512MB RAM)
 RUN sed -i 's/daemonize yes/daemonize no/' /etc/redis/redis.conf && \
     sed -i 's/^bind .*/bind 0.0.0.0/' /etc/redis/redis.conf || echo "bind 0.0.0.0" >> /etc/redis/redis.conf && \
-    sed -i 's/^maxmemory .*/maxmemory 64mb/' /etc/redis/redis.conf || echo "maxmemory 64mb" >> /etc/redis/redis.conf && \
+    sed -i 's/^maxmemory .*/maxmemory 96mb/' /etc/redis/redis.conf || echo "maxmemory 96mb" >> /etc/redis/redis.conf && \
     sed -i 's/^appendonly .*/appendonly no/' /etc/redis/redis.conf || echo "appendonly no" >> /etc/redis/redis.conf && \
     grep -q '^maxmemory-policy' /etc/redis/redis.conf || echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf
 
@@ -39,16 +39,21 @@ ENV RABBITMQ_DEFAULT_USER=seed \
     RABBITMQ_DEFAULT_PASS=seed_password \
     RABBITMQ_DEFAULT_VHOST=/
 
-# Базовая конфигурация RabbitMQ (оптимизировано для низкого потребления RAM)
+# Базовая конфигурация RabbitMQ (агрессивно оптимизировано для 2vCPU/4GB)
 RUN printf "%s\n" \
 "loopback_users.guest = false" \
 "listeners.tcp.default = 5672" \
 "management.tcp.port = 15672" \
 "vm_memory_high_watermark.relative = 0.2" \
 "disk_free_limit.absolute = 20MB" \
+"management.rates_mode = basic" \
 "management.sample_retention_policies.global.minute = 1" \
 "management.sample_retention_policies.global.hour = 0" \
 "management.sample_retention_policies.global.day = 0" \
+"io_thread_pool_size = 16" \
+"channel_max = 256" \
+"heartbeat = 60" \
+"collect_statistics_interval = 10000" \
 >> /etc/rabbitmq/rabbitmq.conf
 
 # =============================================================================
@@ -70,6 +75,34 @@ RUN printf "%s\n" \
 "fi" \
 > /usr/local/bin/rabbit-init.sh && \
 chmod +x /usr/local/bin/rabbit-init.sh
+
+# =============================================================================
+# Диагностические скрипты для триажа нагрузки
+# =============================================================================
+RUN printf "%s\n" \
+"#!/usr/bin/env bash" \
+"echo '=== CPU Usage ==='" \
+"ps -o pid,comm,%cpu,%mem,rss --sort=-%cpu | head -10" \
+"echo" \
+"echo '=== RabbitMQ Queues ==='" \
+"rabbitmqctl list_queues name messages_ready messages_unacknowledged consumers state 2>/dev/null || echo 'RabbitMQ not ready'" \
+"echo" \
+"echo '=== Redis Stats ==='" \
+"redis-cli INFO stats 2>/dev/null | egrep 'evicted_keys|instantaneous_ops_per_sec|keyspace_hits|keyspace_misses' || echo 'Redis not ready'" \
+"redis-cli INFO memory 2>/dev/null | egrep 'used_memory_human|maxmemory_human|mem_fragmentation_ratio' || echo 'Redis not ready'" \
+> /usr/local/bin/diagnostics.sh && \
+chmod +x /usr/local/bin/diagnostics.sh
+
+RUN printf "%s\n" \
+"#!/usr/bin/env bash" \
+"echo '=== RabbitMQ Deep Diagnostics ==='" \
+"rabbitmq-diagnostics -q memory_breakdown 2>/dev/null || echo 'RabbitMQ not ready'" \
+"echo" \
+"rabbitmqctl list_connections pid user state channels 2>/dev/null || echo 'No connections'" \
+"echo" \
+"rabbitmqctl list_channels pid connection prefetch_count consumer_count 2>/dev/null || echo 'No channels'" \
+> /usr/local/bin/rabbit-diag.sh && \
+chmod +x /usr/local/bin/rabbit-diag.sh
 
 # =============================================================================
 # Supervisor конфигурация
@@ -97,7 +130,7 @@ RUN echo "[supervisord]" > /etc/supervisor/conf.d/supervisord.conf && \
     echo "autostart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "autorestart=true" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "user=rabbitmq" >> /etc/supervisor/conf.d/supervisord.conf && \
-    echo "environment=HOME=\"/var/lib/rabbitmq\",USER=\"rabbitmq\",RABBITMQ_NODENAME=\"rabbit@localhost\"" >> /etc/supervisor/conf.d/supervisord.conf && \
+    echo "environment=HOME=\"/var/lib/rabbitmq\",USER=\"rabbitmq\",RABBITMQ_NODENAME=\"rabbit@localhost\",RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=\"+sbwt none +sbwtdcpu none +sbwtdio none\"" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "startsecs=5" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stopsignal=TERM" >> /etc/supervisor/conf.d/supervisord.conf && \
     echo "stdout_logfile=/var/log/supervisor/rabbitmq.log" >> /etc/supervisor/conf.d/supervisord.conf && \
