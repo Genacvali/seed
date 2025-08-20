@@ -6,11 +6,12 @@ services:
   # SEED Agent - Main monitoring service (только локальная сборка)
   # =============================================================================
   seed-agent:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Вместо сборки используем Python образ хоста или standalone режим
+    image: python:3.11-slim  # Уберите эту строку если хотите без образов
     container_name: seed-agent-offline
     restart: unless-stopped
+    working_dir: /app
+    command: ["python", "seed-agent.py", "--mode", "both", "--host", "0.0.0.0", "--port", "8080"]
     
     # Port mapping
     ports:
