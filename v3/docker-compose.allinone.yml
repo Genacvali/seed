@@ -1,0 +1,61 @@
+# =============================================================================
+# SEED Agent All-in-One Docker Compose
+# Один контейнер со всеми сервисами
+# =============================================================================
+
+services:
+  seed-all:
+    build:
+      context: .
+      dockerfile: Dockerfile.allinone
+    container_name: seed-allinone
+    restart: unless-stopped
+    
+    # Все порты в одном контейнере
+    ports:
+      - "8080:8080"     # SEED Agent Web UI
+      - "5672:5672"     # RabbitMQ AMQP
+      - "15672:15672"   # RabbitMQ Management UI  
+      - "6379:6379"     # Redis
+      
+    # Volume mounts
+    volumes:
+      - ./seed.yaml:/app/seed.yaml:ro           # Конфигурация
+      - ./plugins.py:/app/plugins.py:ro         # Плагины
+      - ./logs:/app/logs                        # Логи SEED Agent
+      - seed_data:/var/lib/redis                # Данные Redis
+      - rabbitmq_data:/var/lib/rabbitmq         # Данные RabbitMQ
+      
+    # Environment variables
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - REDIS_URL=redis://localhost:6379/0
+      - RABBITMQ_URL=amqp://seed:seed123@localhost:5672//
+      
+    # Health check
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health && redis-cli ping && rabbitmqctl status"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
+      
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+        reservations:
+          memory: 1G
+          cpus: '0.5'
+
+# =============================================================================
+# Volumes for persistent data
+# =============================================================================
+volumes:
+  seed_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
