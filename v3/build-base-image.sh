@@ -27,10 +27,11 @@ RUN pip install \
     pyyaml==6.0.2 \
     python-dateutil==2.8.2 \
     structlog==23.2.0 \
-    requests==2.31.0
+    requests==2.31.0 \
+    aio_pika==9.4.3
 
 # Проверяем что все установилось
-RUN python -c "import fastapi, uvicorn, redis, httpx, yaml; print('✅ All packages installed')"
+RUN python -c "import fastapi, uvicorn, redis, httpx, yaml, aio_pika; print('✅ All packages installed')"
 
 EOF
 

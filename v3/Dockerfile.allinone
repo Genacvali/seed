@@ -21,8 +21,9 @@ RUN apt-get update && apt-get install -y \
 RUN mkdir -p /var/lib/redis /var/log/redis && \
     chown redis:redis /var/lib/redis /var/log/redis
 
-# Конфигурация Redis
-RUN echo "bind 127.0.0.1" >> /etc/redis/redis.conf && \
+# Конфигурация Redis для supervisor (не daemon mode)
+RUN sed -i 's/daemonize yes/daemonize no/' /etc/redis/redis.conf && \
+    echo "bind 127.0.0.1" >> /etc/redis/redis.conf && \
     echo "maxmemory 256mb" >> /etc/redis/redis.conf && \
     echo "maxmemory-policy allkeys-lru" >> /etc/redis/redis.conf && \
     echo "appendonly yes" >> /etc/redis/redis.conf
