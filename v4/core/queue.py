@@ -1,11 +1,14 @@
 # -*- coding: utf-8 -*-
 import asyncio
 import json
+import logging
 from typing import Dict, Any, Optional
 import aio_pika
 from aio_pika import Connection, Channel, Queue, Exchange
 from aio_pika.abc import AbstractIncomingMessage
 from .config import Config
+
+logger = logging.getLogger(__name__)
 
 class QueueManager:
     def __init__(self, config: Config):
@@ -32,6 +35,11 @@ class QueueManager:
             vhost = f"/{vhost.strip('/')}"
         
         rabbitmq_url = f"amqp://{username}:{password}@{host}:{port}{vhost}"
+        
+        # Debug: log connection details (mask password)
+        debug_url = f"amqp://{username}:***@{host}:{port}{vhost}"
+        logger.info(f"Connecting to RabbitMQ: {debug_url}")
+        
         self.connection = await aio_pika.connect_robust(rabbitmq_url)
         self.channel = await self.connection.channel()
         await self.channel.set_qos(prefetch_count=10)
