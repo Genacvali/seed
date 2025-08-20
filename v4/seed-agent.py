@@ -416,7 +416,7 @@ def main():
         
         # Start server
         uvicorn.run(
-            "seed-agent:app",
+            app,  # Pass app object directly instead of module string
             host=host,
             port=port,
             log_level=log_level,
