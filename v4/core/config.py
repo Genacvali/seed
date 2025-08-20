@@ -29,13 +29,49 @@ class Config:
         try:
             if self.config_path.exists():
                 with open(self.config_path, 'r', encoding='utf-8') as f:
-                    self._config = yaml.safe_load(f) or {}
+                    raw_config = yaml.safe_load(f) or {}
+                # Apply environment variable interpolation
+                self._config = self._interpolate_env_vars(raw_config)
             else:
                 logging.warning(f"Configuration file not found: {self.config_path}")
                 self._config = {}
         except Exception as e:
             logging.error(f"Failed to load configuration: {e}")
             self._config = {}
+    
+    def _interpolate_env_vars(self, config: Any) -> Any:
+        """Recursively interpolate environment variables in config
+        
+        Supports syntax: ${VARIABLE_NAME:default_value}
+        """
+        if isinstance(config, dict):
+            return {key: self._interpolate_env_vars(value) for key, value in config.items()}
+        elif isinstance(config, list):
+            return [self._interpolate_env_vars(item) for item in config]
+        elif isinstance(config, str):
+            return self._interpolate_string(config)
+        else:
+            return config
+    
+    def _interpolate_string(self, value: str) -> str:
+        """Interpolate environment variables in a string"""
+        import re
+        import os
+        
+        def replace_var(match):
+            var_expr = match.group(1)
+            if ':' in var_expr:
+                var_name, default = var_expr.split(':', 1)
+            else:
+                var_name, default = var_expr, ""
+            
+            # Get environment variable value
+            env_value = os.getenv(var_name)
+            return env_value if env_value is not None else default
+        
+        # Pattern: ${VARIABLE_NAME:default}
+        pattern = r'\$\{([^}]+)\}'
+        return re.sub(pattern, replace_var, value)
     
     def reload(self) -> None:
         """Reload configuration from file"""
@@ -62,43 +98,64 @@ class Config:
     
     @property
     def bind_port(self) -> int:
-        return self.get("system.agent.bind_port", 8080)
+        port = self.get("system.agent.bind_port", 8080)
+        return int(port) if isinstance(port, str) and port.isdigit() else port
     
     @property
     def debug(self) -> bool:
-        return self.get("system.agent.debug", False) or os.getenv("DEBUG", "").lower() == "true"
+        debug_val = self.get("system.agent.debug", False)
+        if isinstance(debug_val, str):
+            return debug_val.lower() in ["true", "1", "yes", "on"]
+        return bool(debug_val) or os.getenv("DEBUG", "").lower() == "true"
     
     @property
     def alert_ttl(self) -> int:
-        return self.get("system.alerts.ttl_seconds", 30)
+        ttl = self.get("system.alerts.ttl_seconds", 30)
+        return int(ttl) if isinstance(ttl, str) and ttl.isdigit() else ttl
     
     @property
     def max_retries(self) -> int:
-        return self.get("system.alerts.max_retries", 3)
+        retries = self.get("system.alerts.max_retries", 3)
+        return int(retries) if isinstance(retries, str) and retries.isdigit() else retries
     
     @property
     def retry_delay(self) -> int:
-        return self.get("system.alerts.retry_delay", 10)
+        delay = self.get("system.alerts.retry_delay", 10)
+        return int(delay) if isinstance(delay, str) and delay.isdigit() else delay
     
     # Infrastructure configuration
     @property
     def rabbitmq_config(self) -> Dict[str, Any]:
-        return self.get("infrastructure.rabbitmq", {
+        config = self.get("infrastructure.rabbitmq", {
             "host": "localhost",
             "port": 5672,
             "username": "guest",
             "password": "guest",
             "vhost": "/"
         })
+        
+        # Ensure port is integer
+        if "port" in config and isinstance(config["port"], str):
+            config["port"] = int(config["port"])
+        
+        return config
     
     @property
     def redis_config(self) -> Dict[str, Any]:
-        return self.get("infrastructure.redis", {
+        config = self.get("infrastructure.redis", {
             "host": "localhost",
             "port": 6379,
             "db": 0,
             "password": None
         })
+        
+        # Ensure port and db are integers
+        if "port" in config and isinstance(config["port"], str):
+            config["port"] = int(config["port"])
+        if "db" in config and isinstance(config["db"], str):
+            config["db"] = int(config["db"])
+        
+        return config
     
     @property
     def queue_config(self) -> Dict[str, str]:
@@ -188,6 +245,36 @@ class Config:
         endpoint = telegraf.get("endpoint", "/metrics")
         
         return f"{scheme}://{hostname}:{port}{endpoint}"
+    
+    def get_mongodb_connection_string(self, group_name: Optional[str] = None) -> Optional[str]:
+        """Build MongoDB connection string for a group"""
+        if not group_name:
+            return None
+            
+        host_config = self.get_host_config_for_group(group_name)
+        if not host_config:
+            return None
+        
+        host = host_config.get("mongo_host")
+        port = host_config.get("mongo_port", 27017)
+        username = host_config.get("username")
+        password = host_config.get("password")
+        auth_db = host_config.get("auth_db", "admin")
+        
+        if not host:
+            return None
+        
+        if username and password:
+            return f"mongodb://{username}:{password}@{host}:{port}/{auth_db}"
+        else:
+            return f"mongodb://{host}:{port}/"
+    
+    def get_host_config_for_group(self, group_name: str) -> Dict[str, Any]:
+        """Get configuration for a specific host group"""
+        groups = self.get("hosts.groups", {})
+        if group_name in groups:
+            return groups[group_name].get("overrides", {})
+        return {}
     
     # Plugin configuration
     def get_plugin_config(self, plugin_name: str) -> Dict[str, Any]:
