@@ -1,0 +1,7 @@
+# Docker Images Directory
+# 
+# Положите сюда ваши Docker образы:
+# - rabbitmq.tar
+# - redis.tar
+# 
+# Эта папка предназначена для offline развертывания на VM без интернета.

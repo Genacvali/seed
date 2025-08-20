@@ -2,7 +2,7 @@
 # SEED Agent Makefile - Development and deployment commands
 # =============================================================================
 
-.PHONY: help build up down logs test clean dev prod metrics
+.PHONY: help build up down logs test clean dev prod metrics save-images load-images offline-setup
 
 # Default target
 help:
@@ -23,6 +23,11 @@ help:
 	@echo "Monitoring:"
 	@echo "  metrics      - Start with Prometheus and Grafana"
 	@echo "  stats        - Show agent statistics"
+	@echo ""
+	@echo "Offline Deployment:"
+	@echo "  save-images  - Save Docker images for offline deployment"
+	@echo "  load-images  - Load Docker images from files"
+	@echo "  offline-setup- Complete offline setup (load images + start)"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  clean        - Clean up Docker resources"
@@ -160,3 +165,18 @@ dev-workflow:
 	@make health-all
 	@make test-plugins
 	@echo "✅ Development environment ready!"
+
+# Offline deployment commands
+save-images:
+	@echo "💾 Saving Docker images for offline deployment..."
+	@./save-images.sh
+
+load-images:
+	@echo "🐳 Loading Docker images from files..."
+	@./load-images.sh
+
+offline-setup: load-images up
+	@echo "🎉 Offline setup complete!"
+	@echo "📊 Dashboard: http://localhost:15672 (seed/seed123)"
+	@echo "🔧 API: http://localhost:8080"
+	@echo "📋 Health: http://localhost:8080/health"

@@ -8,7 +8,11 @@
       "Bash(chmod:*)",
       "Bash(ping:*)",
       "Bash(rm:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(true)",
+      "Bash(tree:*)"
     ],
     "deny": [],
     "ask": [],
