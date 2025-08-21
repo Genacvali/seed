@@ -27,6 +27,13 @@ pyinstaller \
     --add-data="plugins.py:." \
     --hidden-import=uvloop \
     --hidden-import=aio_pika \
+    --hidden-import=aio_pika.abc \
+    --hidden-import=aio_pika.connection \
+    --hidden-import=aio_pika.robust_connection \
+    --hidden-import=aiormq \
+    --hidden-import=aiormq.connection \
+    --collect-all=aio_pika \
+    --collect-all=aiormq \
     --clean \
     --noconfirm \
     seed-agent.py
