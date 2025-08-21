@@ -23,14 +23,23 @@ echo "🔍 Checking Docker images..."
 if ! docker image inspect redis:7.2-alpine &>/dev/null || ! docker image inspect rabbitmq:3.13-management &>/dev/null; then
     echo "❌ Required Docker images not found"
     
-    if [[ -d "images" ]] && [[ -f "images/redis_7.2-alpine.tar" ]] && [[ -f "images/rabbitmq_3.13-management.tar" ]]; then
+    if [[ -d "images" ]]; then
         echo "📥 Loading images from tar archives..."
-        ./load-images.sh
+        
+        # Load all tar files in images directory
+        for tar_file in images/*.tar; do
+            if [[ -f "$tar_file" ]]; then
+                echo "Loading $(basename "$tar_file")..."
+                docker load -i "$tar_file"
+            fi
+        done
+        
+        echo "✅ Images loaded successfully"
     else
-        echo "⚠️ No offline images found. Available options:"
+        echo "⚠️ No images/ directory found. Available options:"
         echo "   1. Run ./export-images.sh on online machine"
-        echo "   2. Copy images/*.tar files to this machine"
-        echo "   3. Manually load: docker pull redis:7.2-alpine && docker pull rabbitmq:3.13-management"
+        echo "   2. Copy images/*.tar files to this machine"  
+        echo "   3. Create images/ directory and put tar files there"
         exit 1
     fi
 fi
