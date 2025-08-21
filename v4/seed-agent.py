@@ -14,6 +14,7 @@ Improvements in v4:
 import asyncio
 import logging
 import signal
+import socket
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -78,6 +79,9 @@ class SeedAgent:
     
     async def startup(self):
         """Initialize all services"""
+        import datetime
+        self.start_time = datetime.datetime.now()
+        
         logger.info("Starting SEED Agent v4...")
         
         # Validate configuration
@@ -376,6 +380,107 @@ async def reload_config():
     except Exception as e:
         logger.error(f"Configuration reload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/dashboard")
+async def dashboard():
+    """Live dashboard with system status"""
+    if not seed_agent:
+        raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+    
+    try:
+        import psutil
+        import datetime
+        import socket
+        
+        # System metrics
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        # Network info
+        hostname = socket.getfqdn()
+        
+        # Redis stats
+        redis_stats = seed_agent.redis_throttler.get_stats()
+        
+        # Plugin health
+        plugin_health = await seed_agent.plugin_manager.health_check()
+        
+        dashboard_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "system": {
+                "hostname": hostname,
+                "cpu_percent": cpu_percent,
+                "memory": {
+                    "total_gb": round(memory.total / (1024**3), 2),
+                    "used_gb": round(memory.used / (1024**3), 2),
+                    "percent": memory.percent
+                },
+                "disk": {
+                    "total_gb": round(disk.total / (1024**3), 2),
+                    "used_gb": round(disk.used / (1024**3), 2),
+                    "percent": round(disk.used / disk.total * 100, 1)
+                }
+            },
+            "agent": {
+                "version": "4.0.0",
+                "status": "running" if seed_agent.is_running else "stopped",
+                "environment": seed_agent.config.get("environment", "unknown"),
+                "uptime_seconds": int((datetime.datetime.now() - seed_agent.start_time).total_seconds()) if hasattr(seed_agent, 'start_time') else 0
+            },
+            "services": {
+                "rabbitmq": True,
+                "redis": redis_stats["redis_connected"],
+                "plugins": plugin_health["healthy"]
+            },
+            "redis": redis_stats,
+            "plugins": plugin_health,
+            "alerts": {
+                "throttled_count": redis_stats.get("suppressed_count", 0),
+                "routing_rules": len(seed_agent.config.config.get("routing", {}).get("alerts", {}))
+            }
+        }
+        
+        return JSONResponse(content=dashboard_data)
+        
+    except ImportError:
+        # Fallback without psutil
+        return JSONResponse(content={
+            "error": "Install psutil for full system metrics: pip install psutil",
+            "basic_status": {
+                "agent_running": seed_agent.is_running,
+                "redis_connected": seed_agent.redis_throttler.get_stats()["redis_connected"]
+            }
+        })
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/alerts/test")
+async def test_alerts():
+    """Get list of available test alerts"""
+    if not seed_agent:
+        raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+    
+    routing = seed_agent.config.config.get("routing", {}).get("alerts", {})
+    hostname = socket.getfqdn()
+    
+    test_alerts = []
+    for alert_name, config in routing.items():
+        test_alerts.append({
+            "name": alert_name,
+            "plugin": config.get("plugin"),
+            "priority": config.get("payload", {}).get("priority", "normal"),
+            "curl_command": f'curl -X POST http://{hostname}:8080/alert -H "Content-Type: application/json" -d \'{{"alertname":"{alert_name}", "instance":"{hostname}"}}\'',
+            "description": f"Test {alert_name} alert via {config.get('plugin')} plugin"
+        })
+    
+    return JSONResponse(content={
+        "available_alerts": test_alerts,
+        "total_count": len(test_alerts)
+    })
 
 
 def main():
