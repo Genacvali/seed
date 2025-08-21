@@ -18,6 +18,23 @@ fi
 
 echo "✅ Using RabbitMQ credentials: $RABBITMQ_USER/*****"
 
+# Check if Docker images are available
+echo "🔍 Checking Docker images..."
+if ! docker image inspect redis:7.2-alpine &>/dev/null || ! docker image inspect rabbitmq:3.13-management &>/dev/null; then
+    echo "❌ Required Docker images not found"
+    
+    if [[ -d "images" ]] && [[ -f "images/redis_7.2-alpine.tar" ]] && [[ -f "images/rabbitmq_3.13-management.tar" ]]; then
+        echo "📥 Loading images from tar archives..."
+        ./load-images.sh
+    else
+        echo "⚠️ No offline images found. Available options:"
+        echo "   1. Run ./export-images.sh on online machine"
+        echo "   2. Copy images/*.tar files to this machine"
+        echo "   3. Manually load: docker pull redis:7.2-alpine && docker pull rabbitmq:3.13-management"
+        exit 1
+    fi
+fi
+
 # Start infrastructure
 echo "📦 Starting Docker services..."
 export RABBITMQ_DEFAULT_USER="$RABBITMQ_USER"
