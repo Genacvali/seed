@@ -87,18 +87,28 @@ done
 echo "🎉 All services ready!"
 
 # Start SEED Agent
+echo "🎯 Starting SEED Agent..."
+
+# Try binary first, fall back to Python
 if [[ -f "dist/seed-agent" ]]; then
-    echo "🎯 Starting SEED Agent..."
-    ./dist/seed-agent > seed-agent.log 2>&1 &
-    AGENT_PID=$!
-    echo $AGENT_PID > seed-agent.pid
+    echo "Trying binary..."
+    timeout 5 ./dist/seed-agent --help &>/dev/null
+    if [[ $? -eq 0 ]]; then
+        echo "Using binary..."
+        ./dist/seed-agent > seed-agent.log 2>&1 &
+        AGENT_PID=$!
+    else
+        echo "Binary failed, using Python..."
+        python3 seed-agent.py > seed-agent.log 2>&1 &
+        AGENT_PID=$!
+    fi
 else
-    echo "🔨 Building and starting SEED Agent..."
-    ./build-agent.sh
-    ./dist/seed-agent > seed-agent.log 2>&1 &
+    echo "Using Python directly..."
+    python3 seed-agent.py > seed-agent.log 2>&1 &
     AGENT_PID=$!
-    echo $AGENT_PID > seed-agent.pid
 fi
+
+echo $AGENT_PID > seed-agent.pid
 
 # Wait for SEED Agent to start
 echo -n "SEED Agent: "
