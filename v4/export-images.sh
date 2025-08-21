@@ -1,70 +1,42 @@
 #!/bin/bash
-# =============================================================================
 # SEED Agent v4 - Docker Images Export Script
-# Exports Redis and RabbitMQ images to tar archives for offline deployment
-# =============================================================================
+set -euo pipefail
 
-set -e
+echo "📦 Exporting Docker images for offline deployment..."
 
-echo "🚀 Exporting SEED Agent Docker Images"
-echo "====================================="
-
-# Check if Docker is available
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed or not in PATH"
+# Check Docker
+if ! command -v docker &>/dev/null; then
+    echo "❌ Docker not found"
     exit 1
 fi
 
-# Create images directory if it doesn't exist
 mkdir -p images
 
-# Export Redis image
-echo ""
-echo "📦 Exporting Redis image..."
-echo "   Image: redis:7.2-alpine"
-echo "   Output: images/redis-7.2-alpine.tar"
+# Images to export
+IMAGES=(
+    "redis:7.2-alpine"
+    "rabbitmq:3.13-management"
+)
 
-if docker image inspect redis:7.2-alpine >/dev/null 2>&1; then
-    docker save redis:7.2-alpine -o images/redis-7.2-alpine.tar
-    echo "   ✅ Redis image exported ($(du -h images/redis-7.2-alpine.tar | cut -f1))"
-else
-    echo "   ⚠️  Redis image not found locally. Pulling..."
-    docker pull redis:7.2-alpine
-    docker save redis:7.2-alpine -o images/redis-7.2-alpine.tar
-    echo "   ✅ Redis image pulled and exported ($(du -h images/redis-7.2-alpine.tar | cut -f1))"
-fi
-
-# Export RabbitMQ image
-echo ""
-echo "📦 Exporting RabbitMQ image..."
-echo "   Image: rabbitmq:3.13-management"
-echo "   Output: images/rabbitmq-3.13-management.tar"
-
-if docker image inspect rabbitmq:3.13-management >/dev/null 2>&1; then
-    docker save rabbitmq:3.13-management -o images/rabbitmq-3.13-management.tar
-    echo "   ✅ RabbitMQ image exported ($(du -h images/rabbitmq-3.13-management.tar | cut -f1))"
-else
-    echo "   ⚠️  RabbitMQ image not found locally. Pulling..."
-    docker pull rabbitmq:3.13-management
-    docker save rabbitmq:3.13-management -o images/rabbitmq-3.13-management.tar
-    echo "   ✅ RabbitMQ image pulled and exported ($(du -h images/rabbitmq-3.13-management.tar | cut -f1))"
-fi
-
-# Show results
-echo ""
-echo "🎉 Image Export Complete!"
-echo ""
-echo "📁 Exported Files:"
-ls -lah images/*.tar | while read -r line; do
-    echo "   $line"
+# Export each image
+for image in "${IMAGES[@]}"; do
+    echo "Exporting $image..."
+    
+    # Pull if not exists
+    docker image inspect "$image" &>/dev/null || docker pull "$image"
+    
+    # Export
+    filename=$(echo "$image" | tr '/:' '_').tar
+    docker save "$image" -o "images/$filename"
+    
+    echo "✅ $image -> images/$filename ($(du -h images/$filename | cut -f1))"
 done
 
 echo ""
-echo "📋 Summary:"
-echo "   Redis:    images/redis-7.2-alpine.tar"
-echo "   RabbitMQ: images/rabbitmq-3.13-management.tar"
+echo "✅ Export complete!"
+echo "📁 Files in images/:"
+ls -lh images/*.tar
+
 echo ""
-echo "💾 Total Size: $(du -ch images/*.tar | tail -1 | cut -f1)"
-echo ""
-echo "🚚 To load these images on another system:"
-echo "   ./load-images.sh"
+echo "💾 Total: $(du -ch images/*.tar 2>/dev/null | tail -1 | cut -f1 || echo 'N/A')"
+echo "🚚 Load with: ./load-images.sh"
