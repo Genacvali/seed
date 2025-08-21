@@ -4,9 +4,19 @@ set -euo pipefail
 
 echo "🚀 Starting SEED Agent v4..."
 
-# Default credentials
-RABBITMQ_USER=${RABBITMQ_USER:-admin}
-RABBITMQ_PASS=${RABBITMQ_PASS:-admin}
+# RabbitMQ credentials
+if [[ -z "${RABBITMQ_USER:-}" ]]; then
+    read -p "RabbitMQ Username [admin]: " RABBITMQ_USER
+    RABBITMQ_USER=${RABBITMQ_USER:-admin}
+fi
+
+if [[ -z "${RABBITMQ_PASS:-}" ]]; then
+    read -s -p "RabbitMQ Password [admin]: " RABBITMQ_PASS
+    echo ""
+    RABBITMQ_PASS=${RABBITMQ_PASS:-admin}
+fi
+
+echo "✅ Using RabbitMQ credentials: $RABBITMQ_USER/*****"
 
 # Start infrastructure
 echo "📦 Starting Docker services..."
