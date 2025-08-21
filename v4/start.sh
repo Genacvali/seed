@@ -129,12 +129,15 @@ for i in {1..30}; do
     echo -n "."
 done
 
+# Get hostname
+HOSTNAME=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
+
 echo ""
 echo "🎉 SEED Agent v4 Started Successfully!"
 echo "🌐 URLs:"
-echo "   Agent: http://localhost:8080/health"
-echo "   RabbitMQ: http://localhost:15672 ($RABBITMQ_USER/$RABBITMQ_PASS)"
+echo "   Agent: http://$HOSTNAME:8080/health"
+echo "   RabbitMQ: http://$HOSTNAME:15672 ($RABBITMQ_USER/$RABBITMQ_PASS)"
 echo ""
-echo "🧪 Test: curl -X POST http://localhost:8080/alert -H 'Content-Type: application/json' -d '{\"alertname\":\"Test\", \"instance\":\"localhost\"}'"
+echo "🧪 Test: curl -X POST http://$HOSTNAME:8080/alert -H 'Content-Type: application/json' -d '{\"alertname\":\"Test\", \"instance\":\"$HOSTNAME\"}'"
 echo "📜 Logs: tail -f seed-agent.log"
 echo "⏹️ Stop: ./stop.sh"
