@@ -89,23 +89,20 @@ echo "🎉 All services ready!"
 # Start SEED Agent
 echo "🎯 Starting SEED Agent..."
 
-# Try binary first, fall back to Python
-if [[ -f "dist/seed-agent" ]]; then
-    echo "Trying binary..."
-    timeout 5 ./dist/seed-agent --help &>/dev/null
-    if [[ $? -eq 0 ]]; then
-        echo "Using binary..."
-        ./dist/seed-agent > seed-agent.log 2>&1 &
-        AGENT_PID=$!
-    else
-        echo "Binary failed, using Python..."
-        python3 seed-agent.py > seed-agent.log 2>&1 &
-        AGENT_PID=$!
-    fi
-else
-    echo "Using Python directly..."
+# Check if we have Python and dependencies
+if python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml" 2>/dev/null; then
+    echo "Using Python (recommended)..."
     python3 seed-agent.py > seed-agent.log 2>&1 &
     AGENT_PID=$!
+elif [[ -f "dist/seed-agent" ]]; then
+    echo "Using binary..."
+    ./dist/seed-agent > seed-agent.log 2>&1 &
+    AGENT_PID=$!
+else
+    echo "❌ No Python dependencies and no binary found"
+    echo "   Install dependencies: pip3 install -r requirements.txt"
+    echo "   Or build binary: ./build-agent.sh"
+    exit 1
 fi
 
 echo $AGENT_PID > seed-agent.pid
