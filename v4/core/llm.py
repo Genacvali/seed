@@ -116,8 +116,12 @@ class LLMClient:
         self.gigachat = None
         self.enabled = False
         
+        import logging
+        logger = logging.getLogger(__name__)
+        
         # Initialize GigaChat client with config values
-        if config.get("llm.enabled", True):
+        llm_enabled = config.get("llm.enabled", True)
+        if llm_enabled:
             # Set environment variables from config BEFORE creating GigaChat
             gigachat_config = config.get("llm.gigachat", {})
             
@@ -150,11 +154,18 @@ class LLMClient:
                 try:
                     self.gigachat = GigaChat()
                     self.enabled = self.gigachat.enabled
+                    if self.enabled:
+                        logger.info("✅ GigaChat LLM client initialized successfully")
+                    else:
+                        logger.warning("⚠️ GigaChat created but not enabled - check credentials")
                 except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).error(f"Failed to initialize GigaChat: {e}")
+                    logger.error(f"❌ Failed to initialize GigaChat: {e}")
                     self.gigachat = None
                     self.enabled = False
+            else:
+                logger.warning("⚠️ GigaChat configuration missing or incomplete - LLM disabled")
+        else:
+            logger.info("ℹ️ LLM disabled in configuration")
             
     async def get_completion(self, prompt: str, max_tokens: int = 500) -> str:
         """Get completion from LLM"""
