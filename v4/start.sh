@@ -44,6 +44,17 @@ if ! docker image inspect redis:7.2-alpine &>/dev/null || ! docker image inspect
     fi
 fi
 
+# Load environment variables from seed.env if it exists
+if [[ -f "seed.env" ]]; then
+    echo "📁 Loading environment variables from seed.env..."
+    set -a
+    source seed.env
+    set +a
+    echo "✅ Environment variables loaded"
+else
+    echo "⚠️ seed.env not found - copy seed.env.example and fill with real values"
+fi
+
 # Start infrastructure
 echo "📦 Starting Docker services..."
 export RABBITMQ_DEFAULT_USER="$RABBITMQ_USER"

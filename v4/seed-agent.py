@@ -579,9 +579,24 @@ async def reload_config():
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
     
     try:
+        # Reload configuration
         seed_agent.config.reload()
         logger.info("Configuration reloaded successfully")
-        return {"success": True, "message": "Configuration reloaded"}
+        
+        # Recreate LLM client with new config
+        from core.llm import LLMClient
+        seed_agent.llm_client = LLMClient(seed_agent.config)
+        logger.info("LLM client recreated")
+        
+        # Reinitialize notification manager
+        await seed_agent.notification_manager.initialize()
+        logger.info("Notification manager reinitialized")
+        
+        return {
+            "success": True, 
+            "message": "Configuration reloaded and clients recreated",
+            "llm_enabled": seed_agent.llm_client.enabled
+        }
     except Exception as e:
         logger.error(f"Configuration reload failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

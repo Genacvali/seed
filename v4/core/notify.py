@@ -80,10 +80,14 @@ class NotificationManager:
                 )
                 
                 if response.status_code == 200:
-                    logger.debug(f"Mattermost message sent to {channel}")
+                    logger.info(f"✅ Mattermost message sent successfully to {channel}")
                     return True
                 else:
-                    logger.error(f"Mattermost API error: {response.status_code} - {response.text}")
+                    # Get response body for detailed error info
+                    error_body = response.text
+                    logger.error(f"❌ Mattermost API error {response.status_code}: {error_body}")
+                    logger.error(f"   Webhook URL: {self.mattermost_config['webhook_url'][:50]}...")
+                    logger.error(f"   Payload size: {len(str(payload))} chars")
                     return False
                     
         except Exception as e:
@@ -144,18 +148,29 @@ class NotificationManager:
         # Send to all enabled channels
         sent_channels = []
         
+        # Debug info
+        logger.info(f"📤 Sending notification for {alertname} to enabled channels...")
+        
         # Try Mattermost
-        if await self.send_mattermost_message(notification_message):
-            sent_channels.append("Mattermost")
+        if self.mattermost_config.get("enabled"):
+            logger.debug(f"   Trying Mattermost (webhook: {self.mattermost_config.get('webhook_url', 'not set')[:50]}...)")
+            if await self.send_mattermost_message(notification_message):
+                sent_channels.append("Mattermost")
+        else:
+            logger.debug("   Mattermost disabled in config")
         
         # Try Slack
-        if await self.send_slack_message(notification_message):
-            sent_channels.append("Slack")
+        if self.slack_config.get("enabled"):
+            logger.debug(f"   Trying Slack (webhook: {self.slack_config.get('webhook_url', 'not set')[:50]}...)")
+            if await self.send_slack_message(notification_message):
+                sent_channels.append("Slack")
+        else:
+            logger.debug("   Slack disabled in config")
         
         if sent_channels:
-            logger.info(f"Alert notification sent to: {', '.join(sent_channels)}")
+            logger.info(f"🎉 Alert notification sent to: {', '.join(sent_channels)}")
         else:
-            logger.warning(f"Failed to send alert notification for {alertname}")
+            logger.warning(f"⚠️ Failed to send alert notification for {alertname} - no channels succeeded")
     
     def get_stats(self) -> Dict[str, Any]:
         """Get notification manager statistics"""
