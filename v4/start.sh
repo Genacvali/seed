@@ -2,7 +2,7 @@
 # SEED Agent v4 - Simplified Startup Script
 set -euo pipefail
 
-echo "🚀 Starting SEED Agent v4..."
+echo "🚀 Starting SEED Agent v5..."
 
 # RabbitMQ credentials
 if [[ -z "${RABBITMQ_USER:-}" ]]; then
@@ -133,7 +133,7 @@ done
 HOSTNAME=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "localhost")
 
 echo ""
-echo "🎉 SEED Agent v4 Started Successfully!"
+echo "🎉 SEED Agent v5 Started Successfully!"
 echo "🌐 Web Interface:"
 echo "   📊 Health Check:    http://$HOSTNAME:8080/health"
 echo "   🚀 Live Dashboard:  http://$HOSTNAME:8080/dashboard"
@@ -149,7 +149,7 @@ echo "   Live Dashboard:   curl http://$HOSTNAME:8080/dashboard | jq ."
 echo "   Available Tests:  curl http://$HOSTNAME:8080/alerts/test | jq ."
 echo ""
 echo "🧪 Test Alert:"
-echo "   curl -X POST http://$HOSTNAME:8080/alert -H 'Content-Type: application/json' -d '{\"alertname\":\"TestHostInventory\", \"instance\":\"$HOSTNAME\"}'"
+echo "   curl -X POST http://$HOSTNAME:8080/alert -H 'Content-Type: application/json' -d '{\"alerts\":[{\"labels\":{\"alertname\":\"TestAlert\", \"instance\":\"$HOSTNAME\", \"severity\":\"warning\"}, \"annotations\":{\"summary\":\"Test alert from SEED Agent v5\"}, \"status\":\"firing\"}]}'"
 echo ""
 echo "📜 Logs: tail -f seed-agent.log"
 echo "⏹️ Stop: ./stop.sh"
