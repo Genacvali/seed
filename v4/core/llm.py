@@ -80,8 +80,21 @@ class LLMClient:
     def __init__(self, config):
         self.config = config
         
-        # Initialize GigaChat client
+        # Initialize GigaChat client with config values
         if config.get("llm.enabled", True):
+            # Set environment variables from config
+            gigachat_config = config.get("llm.gigachat", {})
+            if gigachat_config:
+                import os
+                os.environ["GIGACHAT_CLIENT_ID"] = gigachat_config.get("client_id", "")
+                os.environ["GIGACHAT_CLIENT_SECRET"] = gigachat_config.get("client_secret", "")
+                os.environ["GIGACHAT_SCOPE"] = gigachat_config.get("scope", "GIGACHAT_API_PERS")
+                os.environ["GIGACHAT_OAUTH_URL"] = gigachat_config.get("oauth_url", "")
+                os.environ["GIGACHAT_API_URL"] = gigachat_config.get("api_url", "")
+                os.environ["GIGACHAT_MODEL"] = gigachat_config.get("model", "GigaChat-2")
+                os.environ["GIGACHAT_VERIFY_SSL"] = "1" if gigachat_config.get("verify_ssl", False) else "0"
+                os.environ["GIGACHAT_TOKEN_CACHE"] = gigachat_config.get("token_cache", "/tmp/gigachat_token.json")
+            
             self.gigachat = GigaChat()
             self.enabled = self.gigachat.enabled
         else:

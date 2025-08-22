@@ -164,9 +164,12 @@ class SeedAgent:
     async def process_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process incoming alert"""
         try:
-            alertname = alert_data.get("alertname", "UnknownAlert")
-            instance = alert_data.get("instance", "unknown")
+            # Extract from labels (Alertmanager format)
             labels = alert_data.get("labels", {})
+            annotations = alert_data.get("annotations", {})
+            
+            alertname = labels.get("alertname", alert_data.get("alertname", "UnknownAlert"))
+            instance = labels.get("instance", alert_data.get("instance", "unknown"))
             
             # Extract hostname from instance or labels
             hostname = self._extract_hostname(instance, labels)
@@ -413,18 +416,29 @@ app = FastAPI(
 
 
 @app.post("/alert")
-async def receive_alert(alert: Dict[str, Any]):
-    """Receive and process alert from monitoring system"""
+async def receive_alert(alert_payload: Dict[str, Any]):
+    """Receive and process alert from Alertmanager"""
     if not seed_agent:
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
     
     try:
-        result = await seed_agent.process_alert(alert)
+        # Handle Alertmanager format: {"alerts": [...]}
+        alerts = alert_payload.get("alerts", [])
+        if not alerts:
+            # Fallback: single alert format
+            alerts = [alert_payload]
         
-        if result.get("success"):
-            return JSONResponse(content=result, status_code=200)
+        results = []
+        for alert in alerts:
+            result = await seed_agent.process_alert(alert)
+            results.append(result)
+        
+        # Return result of first alert
+        if results:
+            first_result = results[0]
+            return JSONResponse(content=first_result, status_code=200 if first_result.get("success") else 422)
         else:
-            return JSONResponse(content=result, status_code=422)
+            return JSONResponse(content={"success": False, "error": "No alerts to process"}, status_code=400)
             
     except Exception as e:
         logger.error(f"Alert processing error: {e}")
