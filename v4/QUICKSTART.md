@@ -35,6 +35,8 @@ GIGACHAT_TOKEN_CACHE=/tmp/gigachat_token.json
 
 Без ВСЕХ этих переменных LLM будет disabled!
 
+**Важно для RedHat:** Убедитесь что у пользователя есть права записи в `/tmp/` для кэша токенов GigaChat.
+
 ### 2. Запуск
 
 ```bash
@@ -77,6 +79,13 @@ curl -X POST http://localhost:8080/config/reload
 
 ### 4. Быстрые тесты
 
+**Автоматический smoke-test (рекомендуется):**
+```bash
+./smoke-test.sh
+# Проверит LLM, Mattermost, отправит тестовый алерт и покажет логи
+```
+
+**Ручные тесты:**
 ```bash
 # Тест здоровья системы
 curl http://localhost:8080/health | jq .
