@@ -137,7 +137,8 @@ class LLMClient:
             # Set environment variables from config BEFORE creating GigaChat
             gigachat_config = llm_cfg.get("gigachat", {}) or {}
             
-            if gigachat_config and all(k in gigachat_config for k in ["client_id", "client_secret", "oauth_url", "api_url"]):
+            required = ["client_id", "client_secret", "oauth_url", "api_url"]
+            if gigachat_config and all(gigachat_config.get(k) for k in required):
                 import os
                 
                 # Store original env vars to restore later if needed
@@ -184,7 +185,8 @@ class LLMClient:
                     self.gigachat = None
                     self.enabled = False
             else:
-                logger.warning("⚠️ GigaChat configuration missing or incomplete - LLM disabled")
+                missing = [k for k in required if not gigachat_config.get(k)]
+                logger.warning(f"⚠️ GigaChat config missing/empty keys: {', '.join(missing)} - LLM disabled")
         else:
             logger.info("ℹ️ LLM disabled in configuration")
             

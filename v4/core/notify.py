@@ -62,10 +62,11 @@ class NotificationManager:
         
         payload = {
             "text": text,
-            "channel": channel,
             "username": self.mattermost_config.get("username", "SEED-Agent"),
             "icon_emoji": self.mattermost_config.get("icon_emoji", ":robot_face:")
         }
+        if self.mattermost_config.get("channel"):
+            payload["channel"] = self.mattermost_config["channel"]
         
         try:
             timeout = httpx.Timeout(10.0)
@@ -135,8 +136,10 @@ class NotificationManager:
         severity = llm_result.get("severity", "unknown")
         success = llm_result.get("success", False)
         
-        # Use the pre-formatted message from LLM result (SEED Agent v5)
-        notification_message = message  # Already formatted with emoji, priority, LLM analysis etc.
+        # Use the pre-formatted message produced upstream (SeedAgent.process_alert_with_llm)
+        notification_message = llm_result.get("message") or (
+            f"*{alertname}* on `{instance}` (severity: {severity})"
+        )
         
         # Send to all enabled channels
         sent_channels = []

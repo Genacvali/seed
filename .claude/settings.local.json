@@ -17,7 +17,8 @@
       "Bash(docker save:*)",
       "Bash(whereis:*)",
       "Bash(./start.sh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(where python)"
     ],
     "deny": [],
     "ask": [],
