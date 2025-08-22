@@ -15,7 +15,8 @@
       "Bash(tree:*)",
       "Bash(dir:*)",
       "Bash(docker save:*)",
-      "Bash(whereis:*)"
+      "Bash(whereis:*)",
+      "Bash(./start.sh:*)"
     ],
     "deny": [],
     "ask": [],
