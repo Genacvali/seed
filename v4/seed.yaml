@@ -29,8 +29,8 @@ infrastructure:
   rabbitmq:
     host: "localhost"
     port: 5672
-    username: "admin"
-    password: "admin"
+    username: "${RABBITMQ_DEFAULT_USER:admin}"
+    password: "${RABBITMQ_DEFAULT_PASS:admin}"
     vhost: "/"
     
     # Queue configuration

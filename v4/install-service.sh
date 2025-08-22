@@ -51,8 +51,8 @@ Type=forking
 User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$INSTALL_DIR
-Environment=RABBITMQ_USER=admin
-Environment=RABBITMQ_PASS=admin
+Environment=RABBITMQ_DEFAULT_USER=admin
+Environment=RABBITMQ_DEFAULT_PASS=admin
 ExecStart=$INSTALL_DIR/start.sh
 ExecStop=$INSTALL_DIR/stop.sh
 Restart=always
