@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SEED Agent v4 - Unified Monitoring System
+SEED Agent v5 - Universal LLM-powered Alert Processing System
 
-Improvements in v4:
-- Unified configuration management with environment variable interpolation
-- Centralized service discovery and connection management
-- Proper configuration validation at startup
-- Eliminated hardcoded URLs and connection strings
-- Consistent error handling and logging
+Improvements in v5:
+- Simplified architecture: no plugins, no routing configuration
+- Universal LLM-powered alert analysis with specialized prompts
+- Dynamic message formatting based on alert type and severity
+- Intelligent priority scoring and time-based context
+- Alert lifecycle management (firing/resolved states)
+- All features work with incoming data only from Alertmanager
 """
 
 import asyncio
@@ -29,7 +30,7 @@ from core.config import Config
 from core.queue import QueueManager
 from core.redis_throttle import RedisThrottler
 from core.notify import NotificationManager
-from plugins import PluginManager
+from core.llm import LLMClient
 
 # Setup logging
 logging.basicConfig(
@@ -51,12 +52,12 @@ class SeedAgent:
         self.queue_manager = QueueManager(self.config)
         self.redis_throttler = RedisThrottler(self.config)
         self.notification_manager = NotificationManager(self.config)
-        self.plugin_manager = PluginManager(self.config)
+        self.llm_client = LLMClient(self.config)
         
         # Runtime state
         self.is_running = False
         
-        logger.info(f"SEED Agent v4 initialized with config: {config_path}")
+        logger.info(f"SEED Agent v5 initialized with config: {config_path}")
         logger.info(f"Environment: {self.config.get('environment', 'unknown')}")
     
     def _setup_logging(self):
@@ -82,7 +83,7 @@ class SeedAgent:
         import datetime
         self.start_time = datetime.datetime.now()
         
-        logger.info("Starting SEED Agent v4...")
+        logger.info("Starting SEED Agent v5...")
         
         # Validate configuration
         self._validate_startup_config()
@@ -102,8 +103,13 @@ class SeedAgent:
         await self.notification_manager.initialize()
         logger.info("✅ Notification manager initialized")
         
+        # Initialize LLM client
+        if hasattr(self.llm_client, 'initialize'):
+            await self.llm_client.initialize()
+        logger.info("✅ LLM client initialized")
+        
         self.is_running = True
-        logger.info("🚀 SEED Agent v4 is ready!")
+        logger.info("🚀 SEED Agent v5 is ready! Universal LLM processing enabled")
     
     async def shutdown(self):
         """Cleanup all services"""
@@ -175,20 +181,8 @@ class SeedAgent:
                     "throttle_key": throttle_key
                 }
             
-            # Get alert routing
-            route = self.config.get_alert_route(alertname, labels)
-            if not route:
-                logger.warning(f"No routing found for alert: {alertname}")
-                return {
-                    "success": False,
-                    "error": f"No routing configuration for alert: {alertname}"
-                }
-            
-            plugin_name = route["plugin"]
-            payload = route["payload"]
-            
-            # Execute plugin
-            result = await self.plugin_manager.execute_plugin(plugin_name, hostname, payload)
+            # Universal LLM-powered alert processing
+            result = await self.process_alert_with_llm(alert_data)
             
             if result.get("success"):
                 # Mark as processed to prevent throttling
@@ -225,6 +219,164 @@ class SeedAgent:
             return instance.split(":")[0]
         
         return instance or "unknown"
+    
+    async def process_alert_with_llm(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Universal LLM-powered alert processing"""
+        try:
+            labels = alert_data.get("labels", {})
+            annotations = alert_data.get("annotations", {})
+            alertname = labels.get("alertname", "Unknown Alert")
+            severity = labels.get("severity", "unknown")
+            instance = labels.get("instance", "unknown")
+            
+            # 🎨 Dynamic formatting based on alert type and severity
+            severity_emoji = {
+                "critical": "🔥", "high": "⚠️", "warning": "📊", 
+                "info": "ℹ️", "unknown": "❓"
+            }.get(severity.lower(), "📋")
+            
+            # 🕰️ Time analysis
+            import datetime
+            current_time = datetime.datetime.now()
+            time_context = ""
+            if current_time.hour < 6 or current_time.hour > 22:
+                time_context = " (ночное время - возможно требуется эскалация)"
+            elif current_time.weekday() >= 5:
+                time_context = " (выходной день)"
+            
+            # 🎯 Priority scoring
+            priority_score = self._calculate_priority(labels, annotations)
+            priority_text = {
+                3: "🚨 КРИТИЧЕСКИЙ", 2: "⚠️ ВЫСОКИЙ", 
+                1: "📊 СРЕДНИЙ", 0: "ℹ️ НИЗКИЙ"
+            }.get(priority_score, "📋 ОБЫЧНЫЙ")
+            
+            # 💡 Adaptive LLM prompt based on alert type
+            specialized_prompt = self._get_specialized_prompt(alertname, labels)
+            
+            # 🔄 Check if this is a resolution
+            status = alert_data.get("status", "firing")
+            if status == "resolved":
+                return await self._handle_alert_resolution(alert_data)
+            
+            # Format structured message for LLM
+            llm_input = f"""
+Система мониторинга: {alertname}
+Серьезность: {severity}
+Сервер/Инстанс: {instance}
+Время: {current_time.strftime('%Y-%m-%d %H:%M:%S')}{time_context}
+Приоритет: {priority_text}
+
+Метки: {labels}
+Аннотации: {annotations}
+
+Контекст:
+{specialized_prompt}
+
+Проанализируй ситуацию и дай структурированные рекомендации по устранению проблемы.
+"""
+            
+            # Send to LLM
+            llm_response = ""
+            if hasattr(self, 'llm_client') and self.llm_client:
+                llm_response = await self.llm_client.get_completion(llm_input)
+            
+            # Format final message
+            formatted_message = f"""
+{severity_emoji} **{priority_text}: {alertname}**
+
+📍 **Сервер:** `{instance}`
+⏰ **Время:** `{current_time.strftime('%Y-%m-%d %H:%M:%S')}`{time_context}
+🏷️ **Метки:** {', '.join([f"`{k}={v}`" for k, v in labels.items() if k not in ['alertname', 'instance']])}
+
+**📋 Описание:**
+{annotations.get('summary', annotations.get('description', 'Нет описания'))}
+
+**🤖 AI Анализ:**
+```
+{llm_response}
+```
+"""
+            
+            return {
+                "success": True,
+                "message": formatted_message,
+                "priority": priority_score,
+                "alert_type": alertname,
+                "severity": severity,
+                "instance": instance,
+                "timestamp": current_time.isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to process alert with LLM: {e}")
+            return {
+                "success": False,
+                "error": f"LLM processing failed: {str(e)}"
+            }
+    
+    def _calculate_priority(self, labels: Dict[str, str], annotations: Dict[str, str]) -> int:
+        """🎯 Calculate alert priority score (0-3)"""
+        priority = 0
+        
+        # Severity mapping
+        severity_scores = {
+            "critical": 3, "high": 2, "warning": 1, "info": 0
+        }
+        priority += severity_scores.get(labels.get("severity", "").lower(), 0)
+        
+        # Business impact keywords
+        business_critical = ["prod", "production", "critical", "payment", "auth"]
+        text_to_check = f"{labels} {annotations}".lower()
+        if any(keyword in text_to_check for keyword in business_critical):
+            priority += 1
+            
+        # Service type boost
+        if any(service in text_to_check for service in ["database", "mongodb", "mysql", "postgres"]):
+            priority += 1
+            
+        return min(priority, 3)  # Cap at 3
+    
+    def _get_specialized_prompt(self, alertname: str, labels: Dict[str, str]) -> str:
+        """💡 Get specialized prompt based on alert type"""
+        alert_lower = alertname.lower()
+        
+        if "mongodb" in alert_lower or "mongo" in alert_lower:
+            return "Ты эксперт по MongoDB в production среде. Сосредоточься на диагностике базы данных, репликации, производительности и операционных аспектах."
+        elif "disk" in alert_lower or "space" in alert_lower:
+            return "Ты системный администратор. Анализируй проблемы с дисковым пространством, файловой системой и возможными причинами роста."
+        elif "cpu" in alert_lower or "load" in alert_lower:
+            return "Ты эксперт по производительности серверов. Фокусируйся на CPU нагрузке, процессах и оптимизации производительности."
+        elif "memory" in alert_lower or "ram" in alert_lower:
+            return "Ты специалист по управлению памятью. Анализируй использование RAM, возможные утечки памяти и оптимизацию."
+        elif "network" in alert_lower or "connection" in alert_lower:
+            return "Ты сетевой инженер. Диагностируй сетевые проблемы, подключения и пропускную способность."
+        else:
+            return "Ты опытный DevOps инженер. Предоставь общие рекомендации по диагностике и решению проблемы."
+    
+    async def _handle_alert_resolution(self, alert_data: Dict[str, str]) -> Dict[str, Any]:
+        """🔄 Handle alert resolution"""
+        labels = alert_data.get("labels", {})
+        alertname = labels.get("alertname", "Unknown Alert")
+        instance = labels.get("instance", "unknown")
+        
+        # Calculate resolution time (if we have start time)
+        resolved_message = f"""
+✅ **АЛЕРТ РЕШЕН: {alertname}**
+
+📍 **Сервер:** `{instance}`
+⏰ **Время решения:** `{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`
+
+🎉 Проблема автоматически устранена или решена администратором.
+"""
+        
+        return {
+            "success": True,
+            "message": resolved_message,
+            "action": "resolved",
+            "alert_type": alertname,
+            "instance": instance
+        }
 
 
 # Global agent instance
@@ -249,9 +401,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="SEED Agent v4",
-    description="Unified Monitoring and Alert Processing System",
-    version="4.0.0",
+    title="SEED Agent v5",
+    description="Universal LLM-powered Alert Processing System",
+    version="5.0.0",
     lifespan=lifespan
 )
 

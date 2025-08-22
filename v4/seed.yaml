@@ -154,99 +154,30 @@ hosts:
         telegraf_url: "http://{host}:9216/metrics"
 
 # =============================================================================
-# Alert Routing Configuration - Maps alert names to plugins
+# Universal Alert Processing Configuration
 # =============================================================================
-routing:
-  alerts:
-    # Disk space monitoring
-    DiskSpaceHigh:
-      plugin: "host_inventory"
-      payload:
-        paths: ["/", "/var", "/opt"]
-        alert_type: "disk_space"
-        priority: "high"
-        timeout: 30
-        
-    DiskSpaceCritical:
-      plugin: "host_inventory"
-      payload:
-        paths: ["/", "/var", "/opt"] 
-        alert_type: "disk_critical"
-        priority: "critical"
-        timeout: 30
-        
-    # CPU and memory monitoring
-    HighCpuLoad:
-      plugin: "host_inventory"
-      payload:
-        paths: ["/"]
-        alert_type: "cpu_load"
-        priority: "warning"
-        timeout: 30
-        
-    HighMemoryUsage:
-      plugin: "host_inventory"
-      payload:
-        paths: ["/"]
-        alert_type: "memory"
-        priority: "warning"
-        timeout: 30
-        
-    # General host inventory for testing
-    TestHostInventory:
-      plugin: "host_inventory"
-      payload:
-        paths: ["/", "/tmp"]
-        alert_type: "general"
-        priority: "normal"
-        timeout: 30
-        
-    # MongoDB performance monitoring
-    MongoSlowQuery:
-      plugin: "mongo_hot"
-      payload:
-        min_ms: 100
-        limit: 15
-        priority: "high"
-        timeout: 30
-        
-    MongoCollscan:
-      plugin: "mongo_hot" 
-      payload:
-        min_ms: 50
-        limit: 10
-        priority: "high"
-        timeout: 30
-        
-    # MongoDB availability monitoring
-    "Сервер MongoDB не запущен":
-      plugin: "mongo_hot"
-      payload:
-        priority: "critical"
-        timeout: 30
-        alert_type: "mongodb_down"
+alert_processing:
+  # Universal LLM-based processing (no routing needed)
+  universal_handler: true
+  
+  # Alert throttling settings
+  throttling:
+    enabled: true
+    default_ttl: 300  # 5 minutes
+    
+  # Priority calculation weights
+  priority_weights:
+    severity_critical: 3
+    severity_high: 2  
+    severity_warning: 1
+    severity_info: 0
+    production_boost: 1
+    database_boost: 1
 
+# =============================================================================  
+# SEED Agent v5 - Simplified Universal Processing
+# No plugins needed - everything handled by LLM
 # =============================================================================
-# Plugin Configuration
-# =============================================================================
-plugins:
-  # Host inventory plugin settings
-  host_inventory:
-    default_paths: ["/", "/var"]
-    default_timeout: 30
-    telegraf_metrics:
-      - "disk_used_percent"
-      - "cpu_usage_idle"
-      - "mem_used_percent"
-      - "system_load1"
-      
-  # MongoDB hotspots plugin settings
-  mongo_hot:
-    default_min_ms: 50
-    default_limit: 10
-    connection_timeout: 10000
-    profiler_enabled: true
-    slow_op_sample_rate: 1.0
 
 # =============================================================================
 # Logging Configuration
