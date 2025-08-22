@@ -120,7 +120,7 @@ class GigaChat:
 
 
 class LLMClient:
-    """Universal LLM client wrapper for SEED Agent v5"""
+    """Universal LLM client wrapper for SEED Agent v4"""
     
     def __init__(self, config):
         self.config = config

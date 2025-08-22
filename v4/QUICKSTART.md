@@ -21,11 +21,19 @@ cp seed.env.example seed.env
 nano seed.env
 ```
 
-Обязательно заполните в `seed.env`:
+**КРИТИЧЕСКИ ВАЖНО!** Заполните в `seed.env` ВСЕ GigaChat переменные:
 ```bash
-GIGACHAT_CLIENT_ID=ваш-настоящий-client-id
-GIGACHAT_CLIENT_SECRET=ваш-настоящий-client-secret
+GIGACHAT_CLIENT_ID=ваш-настоящий-client-id-uuid
+GIGACHAT_CLIENT_SECRET=ваш-настоящий-client-secret-uuid
+GIGACHAT_SCOPE=GIGACHAT_API_PERS
+GIGACHAT_OAUTH_URL=https://ngw.devices.sberbank.ru:9443/api/v2/oauth
+GIGACHAT_API_URL=https://gigachat.devices.sberbank.ru/api/v1/chat/completions
+GIGACHAT_MODEL=GigaChat-2
+GIGACHAT_VERIFY_SSL=0
+GIGACHAT_TOKEN_CACHE=/tmp/gigachat_token.json
 ```
+
+Без ВСЕХ этих переменных LLM будет disabled!
 
 ### 2. Запуск
 
@@ -33,6 +41,14 @@ GIGACHAT_CLIENT_SECRET=ваш-настоящий-client-secret
 cd v4/
 ./start.sh
 ```
+
+**При запуске вы должны увидеть:**
+```
+📁 Loading environment variables from seed.env...
+✅ Environment variables loaded
+```
+
+Если видите `⚠️ seed.env not found` - значит файл не создан или находится не в той папке!
 
 ### 3. Диагностика проблем
 

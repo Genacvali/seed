@@ -130,7 +130,7 @@ class NotificationManager:
             return False
     
     async def send_alert_notification(self, alert_data: Dict[str, Any], llm_result: Dict[str, Any]):
-        """Send alert notification through all enabled channels (SEED Agent v5)"""
+        """Send alert notification through all enabled channels (SEED Agent v4)"""
         # Extract alert information from new format
         labels = alert_data.get("labels", {})
         annotations = alert_data.get("annotations", {})
