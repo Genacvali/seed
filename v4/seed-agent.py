@@ -536,6 +536,42 @@ async def get_config():
     return JSONResponse(content=config_summary)
 
 
+@app.get("/llm/selftest")
+async def llm_selftest():
+    """LLM diagnostics endpoint"""
+    import os
+    
+    def check_env_var(key):
+        value = os.getenv(key)
+        return {
+            "present": bool(value),
+            "length": len(value) if value else 0,
+            "value": value[:8] + "..." if value and len(value) > 8 else value if value else None
+        }
+    
+    env_vars = {}
+    for key in ["GIGACHAT_CLIENT_ID", "GIGACHAT_CLIENT_SECRET", "GIGACHAT_OAUTH_URL", "GIGACHAT_API_URL", "GIGACHAT_MODEL", "GIGACHAT_SCOPE", "GIGACHAT_VERIFY_SSL", "GIGACHAT_TOKEN_CACHE"]:
+        env_vars[key] = check_env_var(key)
+    
+    # Check config file values
+    config_file_path = Path("seed.yaml").resolve()
+    config_file_exists = config_file_path.exists()
+    
+    result = {
+        "llm_client_enabled": seed_agent.llm_client.enabled if seed_agent else False,
+        "gigachat_instance": seed_agent.llm_client.gigachat is not None if seed_agent else False,
+        "gigachat_enabled": seed_agent.llm_client.gigachat.enabled if seed_agent and seed_agent.llm_client.gigachat else False,
+        "env_vars": env_vars,
+        "config_file": {
+            "path": str(config_file_path),
+            "exists": config_file_exists
+        },
+        "working_directory": str(Path.cwd())
+    }
+    
+    return result
+
+
 @app.post("/config/reload")
 async def reload_config():
     """Reload configuration"""

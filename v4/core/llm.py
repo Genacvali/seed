@@ -18,10 +18,21 @@ class GigaChat:
         self.token_cache = Path(os.getenv("GIGACHAT_TOKEN_CACHE", "/tmp/gigachat_token.json"))
         
         # Check if all required parameters are present
-        if not all([self.client_id, self.client_secret, self.oauth_url, self.api_url]):
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        missing = []
+        if not self.client_id:    missing.append("GIGACHAT_CLIENT_ID")
+        if not self.client_secret:missing.append("GIGACHAT_CLIENT_SECRET")
+        if not self.oauth_url:    missing.append("GIGACHAT_OAUTH_URL")
+        if not self.api_url:      missing.append("GIGACHAT_API_URL")
+        
+        if missing:
             self.enabled = False
+            logger.error(f"❌ GigaChat disabled: missing env vars: {', '.join(missing)}")
         else:
             self.enabled = True
+            logger.info(f"✅ GigaChat env OK (model={self.model}, verify_ssl={self.verify_ssl})")
 
     def _load_token(self) -> Optional[str]:
         if not self.token_cache.exists(): 
@@ -140,6 +151,15 @@ class LLMClient:
                     "GIGACHAT_VERIFY_SSL": os.environ.get("GIGACHAT_VERIFY_SSL"),
                     "GIGACHAT_TOKEN_CACHE": os.environ.get("GIGACHAT_TOKEN_CACHE")
                 }
+                
+                # Log config values before setting env vars
+                mask = lambda s: (s[:4] + "…" + s[-4:]) if s and len(s) > 8 else "SET" if s else "EMPTY"
+                logger.info(f"📊 LLM config values:")
+                logger.info(f"   client_id: {mask(gigachat_config.get('client_id'))}")
+                logger.info(f"   client_secret: {mask(gigachat_config.get('client_secret'))}")
+                logger.info(f"   oauth_url: {'SET' if gigachat_config.get('oauth_url') else 'EMPTY'}")
+                logger.info(f"   api_url: {'SET' if gigachat_config.get('api_url') else 'EMPTY'}")
+                logger.info(f"   verify_ssl: {gigachat_config.get('verify_ssl', False)}")
                 
                 # Set config values to environment
                 os.environ["GIGACHAT_CLIENT_ID"] = gigachat_config.get("client_id", "")
