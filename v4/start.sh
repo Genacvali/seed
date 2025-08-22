@@ -90,7 +90,7 @@ echo "🎉 All services ready!"
 echo "🎯 Starting SEED Agent..."
 
 # Check if we have Python and dependencies
-if python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml" 2>/dev/null; then
+if python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml, requests, dotenv" 2>/dev/null; then
     echo "Using Python (recommended)..."
     python3 seed-agent.py > seed-agent.log 2>&1 &
     AGENT_PID=$!

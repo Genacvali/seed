@@ -120,10 +120,11 @@ class LLMClient:
         logger = logging.getLogger(__name__)
         
         # Initialize GigaChat client with config values
-        llm_enabled = config.get("llm.enabled", True)
+        llm_cfg = config.get("llm", {}) or {}
+        llm_enabled = llm_cfg.get("enabled", True)
         if llm_enabled:
             # Set environment variables from config BEFORE creating GigaChat
-            gigachat_config = config.get("llm.gigachat", {})
+            gigachat_config = llm_cfg.get("gigachat", {}) or {}
             
             if gigachat_config and all(k in gigachat_config for k in ["client_id", "client_secret", "oauth_url", "api_url"]):
                 import os

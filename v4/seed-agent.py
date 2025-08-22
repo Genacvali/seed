@@ -484,7 +484,7 @@ async def metrics():
     metrics_data = [
         "# HELP seed_agent_info Information about SEED Agent",
         "# TYPE seed_agent_info gauge",
-        f'seed_agent_info{{version="4.0.0",environment="{seed_agent.config.get("environment", "unknown")}"}} 1',
+        f'seed_agent_info{{version="5.0.0",environment="{seed_agent.config.get("environment", "unknown")}"}} 1',
         "",
         "# HELP seed_agent_up Whether SEED Agent is running",
         "# TYPE seed_agent_up gauge",
@@ -596,7 +596,7 @@ async def dashboard():
                 }
             },
             "agent": {
-                "version": "4.0.0",
+                "version": "5.0.0",
                 "status": "running" if seed_agent.is_running else "stopped",
                 "environment": seed_agent.config.get("environment", "unknown"),
                 "uptime_seconds": int((datetime.datetime.now() - seed_agent.start_time).total_seconds()) if hasattr(seed_agent, 'start_time') else 0
