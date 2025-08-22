@@ -124,79 +124,29 @@ class NotificationManager:
             logger.error(f"Failed to send Slack message: {e}")
             return False
     
-    async def send_alert_notification(self, alert_data: Dict[str, Any], plugin_result: Dict[str, Any]):
-        """Send alert notification through all enabled channels"""
-        # Extract alert information
-        alertname = alert_data.get("alertname", "Unknown Alert")
-        hostname = plugin_result.get("hostname", "unknown")
-        plugin = plugin_result.get("plugin", "unknown")
-        success = plugin_result.get("success", False)
+    async def send_alert_notification(self, alert_data: Dict[str, Any], llm_result: Dict[str, Any]):
+        """Send alert notification through all enabled channels (SEED Agent v5)"""
+        # Extract alert information from new format
+        labels = alert_data.get("labels", {})
+        annotations = alert_data.get("annotations", {})
         
-        # Determine severity emoji
-        severity = alert_data.get("labels", {}).get("severity", "warning")
-        emoji_map = {
-            "critical": "🔴",
-            "high": "🟠", 
-            "warning": "🟡",
-            "info": "🔵"
-        }
-        emoji = emoji_map.get(severity, "⚠️")
+        alertname = labels.get("alertname", "Unknown Alert") 
+        instance = llm_result.get("instance", "unknown")
+        severity = llm_result.get("severity", "unknown")
+        success = llm_result.get("success", False)
         
-        # Build notification message
-        if success:
-            status_icon = "✅"
-            status_text = "Processed"
-        else:
-            status_icon = "❌"
-            status_text = "Failed"
-            
-        message = f"{emoji} **{alertname}**\n"
-        message += f"{status_icon} Status: {status_text}\n"
-        message += f"🏠 Host: `{hostname}`\n"
-        message += f"🔧 Plugin: `{plugin}`\n"
-        
-        if success:
-            execution_time = plugin_result.get("execution_time", 0)
-            message += f"⏱️ Execution: {execution_time:.2f}s\n"
-            
-            # Add plugin-specific details
-            if plugin == "host_inventory":
-                data = plugin_result.get("data", {})
-                if "disk_usage" in data:
-                    disk_info = data["disk_usage"]
-                    if disk_info:
-                        message += f"💾 Disk usage: {disk_info[0].get('used_percent', 0):.1f}%\n"
-                
-                if "cpu_usage_percent" in data:
-                    cpu_usage = data["cpu_usage_percent"]
-                    message += f"🖥️ CPU usage: {cpu_usage:.1f}%\n"
-                
-                if "memory_usage_gb" in data:
-                    memory = data["memory_metrics"]
-                    message += f"💾 Memory: {memory.get('used_percent', 0):.1f}%\n"
-                    
-            elif plugin == "mongo_hot":
-                data = plugin_result.get("data", {})
-                query_count = data.get("query_count", 0)
-                message += f"🔍 Slow queries found: {query_count}\n"
-        else:
-            error = plugin_result.get("error", "Unknown error")
-            message += f"❌ Error: {error}\n"
-        
-        # Add timestamp
-        import datetime
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message += f"🕐 Time: {timestamp}"
+        # Use the pre-formatted message from LLM result (SEED Agent v5)
+        notification_message = message  # Already formatted with emoji, priority, LLM analysis etc.
         
         # Send to all enabled channels
         sent_channels = []
         
         # Try Mattermost
-        if await self.send_mattermost_message(message):
+        if await self.send_mattermost_message(notification_message):
             sent_channels.append("Mattermost")
         
         # Try Slack
-        if await self.send_slack_message(message):
+        if await self.send_slack_message(notification_message):
             sent_channels.append("Slack")
         
         if sent_channels:

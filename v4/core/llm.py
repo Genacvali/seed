@@ -82,10 +82,11 @@ class LLMClient:
         
         # Initialize GigaChat client with config values
         if config.get("llm.enabled", True):
-            # Set environment variables from config
+            # Set environment variables from config BEFORE creating GigaChat
             gigachat_config = config.get("llm.gigachat", {})
+            import os
+            
             if gigachat_config:
-                import os
                 os.environ["GIGACHAT_CLIENT_ID"] = gigachat_config.get("client_id", "")
                 os.environ["GIGACHAT_CLIENT_SECRET"] = gigachat_config.get("client_secret", "")
                 os.environ["GIGACHAT_SCOPE"] = gigachat_config.get("scope", "GIGACHAT_API_PERS")
@@ -94,9 +95,13 @@ class LLMClient:
                 os.environ["GIGACHAT_MODEL"] = gigachat_config.get("model", "GigaChat-2")
                 os.environ["GIGACHAT_VERIFY_SSL"] = "1" if gigachat_config.get("verify_ssl", False) else "0"
                 os.environ["GIGACHAT_TOKEN_CACHE"] = gigachat_config.get("token_cache", "/tmp/gigachat_token.json")
-            
-            self.gigachat = GigaChat()
-            self.enabled = self.gigachat.enabled
+                
+                # Now create GigaChat with env vars set
+                self.gigachat = GigaChat()
+                self.enabled = self.gigachat.enabled
+            else:
+                self.gigachat = None
+                self.enabled = False
         else:
             self.gigachat = None
             self.enabled = False
