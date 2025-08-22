@@ -72,3 +72,38 @@ class GigaChat:
             return js["choices"][0]["message"]["content"]
         except Exception:
             return json.dumps(js, ensure_ascii=False)
+
+
+class LLMClient:
+    """Universal LLM client wrapper for SEED Agent v5"""
+    
+    def __init__(self, config):
+        self.config = config
+        
+        # Initialize GigaChat client
+        if config.get("llm.enabled", True):
+            self.gigachat = GigaChat()
+            self.enabled = self.gigachat.enabled
+        else:
+            self.gigachat = None
+            self.enabled = False
+            
+    async def get_completion(self, prompt: str, max_tokens: int = 500) -> str:
+        """Get completion from LLM"""
+        try:
+            if not self.enabled or not self.gigachat:
+                return "LLM недоступен - анализ не выполнен"
+                
+            # Call GigaChat synchronously (it's not async)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            
+            # Run in thread pool to avoid blocking
+            result = await loop.run_in_executor(
+                None, self.gigachat.ask, prompt, max_tokens
+            )
+            
+            return result or "LLM не вернул результат"
+            
+        except Exception as e:
+            return f"Ошибка LLM: {str(e)}"

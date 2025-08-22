@@ -151,9 +151,11 @@ class SeedAgent:
             else:
                 logger.warning("⚠️ No notification channels enabled")
             
-            # Check plugin configuration
-            plugin_info = self.plugin_manager.get_plugin_info()
-            logger.info(f"Loaded {plugin_info['total_plugins']} plugins")
+            # LLM client configured
+            if self.llm_client.enabled:
+                logger.info("✅ LLM client enabled for universal processing")
+            else:
+                logger.warning("⚠️ LLM client disabled - responses will be basic")
             
         except Exception as e:
             logger.error(f"Configuration validation failed: {e}")
@@ -356,6 +358,8 @@ class SeedAgent:
     
     async def _handle_alert_resolution(self, alert_data: Dict[str, str]) -> Dict[str, Any]:
         """🔄 Handle alert resolution"""
+        import datetime
+        
         labels = alert_data.get("labels", {})
         alertname = labels.get("alertname", "Unknown Alert")
         instance = labels.get("instance", "unknown")
@@ -434,23 +438,19 @@ async def health_check():
         raise HTTPException(status_code=503, detail="SEED Agent not ready")
     
     try:
-        # Check plugin health
-        plugin_health = await seed_agent.plugin_manager.health_check()
-        
         # Check Redis health
         redis_stats = seed_agent.redis_throttler.get_stats()
         
         health = {
             "status": "healthy",
-            "version": "4.0.0",
+            "version": "5.0.0",
             "environment": seed_agent.config.get("environment", "unknown"),
             "services": {
                 "rabbitmq": True,  # If we're running, RabbitMQ is connected
                 "redis": redis_stats["redis_connected"],
-                "plugins": plugin_health["healthy"]
+                "llm": seed_agent.llm_client.enabled
             },
-            "redis_stats": redis_stats,
-            "plugin_health": plugin_health
+            "redis_stats": redis_stats
         }
         
         return JSONResponse(content=health)
@@ -508,7 +508,10 @@ async def get_config():
             "port": seed_agent.config.bind_port,
             "debug": seed_agent.config.debug
         },
-        "plugins": seed_agent.plugin_manager.get_plugin_info(),
+        "llm": {
+            "enabled": seed_agent.llm_client.enabled,
+            "provider": "GigaChat"
+        },
         "notifications": {
             "mattermost_enabled": seed_agent.config.notification_config.get("mattermost", {}).get("enabled", False),
             "slack_enabled": seed_agent.config.notification_config.get("slack", {}).get("enabled", False),
@@ -556,8 +559,11 @@ async def dashboard():
         # Redis stats
         redis_stats = seed_agent.redis_throttler.get_stats()
         
-        # Plugin health
-        plugin_health = await seed_agent.plugin_manager.health_check()
+        # LLM health
+        llm_health = {
+            "enabled": seed_agent.llm_client.enabled,
+            "provider": "GigaChat"
+        }
         
         dashboard_data = {
             "timestamp": datetime.datetime.now().isoformat(),
@@ -584,13 +590,13 @@ async def dashboard():
             "services": {
                 "rabbitmq": True,
                 "redis": redis_stats["redis_connected"],
-                "plugins": plugin_health["healthy"]
+                "llm": llm_health["enabled"]
             },
             "redis": redis_stats,
-            "plugins": plugin_health,
+            "llm": llm_health,
             "alerts": {
                 "throttled_count": redis_stats.get("suppressed_count", 0),
-                "routing_rules": len(seed_agent.config.config.get("routing", {}).get("alerts", {}))
+                "universal_processing": True
             }
         }
         
@@ -616,21 +622,37 @@ async def test_alerts():
     if not seed_agent:
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
     
-    routing = seed_agent.config.config.get("routing", {}).get("alerts", {})
     hostname = socket.getfqdn()
     
-    test_alerts = []
-    for alert_name, config in routing.items():
-        test_alerts.append({
-            "name": alert_name,
-            "plugin": config.get("plugin"),
-            "priority": config.get("payload", {}).get("priority", "normal"),
-            "curl_command": f'curl -X POST http://{hostname}:8080/alert -H "Content-Type: application/json" -d \'{{"alertname":"{alert_name}", "instance":"{hostname}"}}\'',
-            "description": f"Test {alert_name} alert via {config.get('plugin')} plugin"
-        })
+    # Sample test alerts for universal processing
+    test_alerts = [
+        {
+            "name": "Сервер MongoDB не запущен",
+            "severity": "critical",
+            "type": "database",
+            "curl_command": f'''curl -X POST http://{hostname}:8080/alert -H "Content-Type: application/json" -d '{{"alerts":[{{"labels":{{"alertname":"Сервер MongoDB не запущен","instance":"{hostname}","severity":"critical"}},"annotations":{{"summary":"MongoDB недоступен"}},"status":"firing"}}]}}\'''',
+            "description": "Test MongoDB availability alert with LLM analysis"
+        },
+        {
+            "name": "DiskSpaceCritical",
+            "severity": "critical", 
+            "type": "system",
+            "curl_command": f'''curl -X POST http://{hostname}:8080/alert -H "Content-Type: application/json" -d '{{"alerts":[{{"labels":{{"alertname":"DiskSpaceCritical","instance":"{hostname}","severity":"critical"}},"annotations":{{"summary":"Критически мало места на диске"}},"status":"firing"}}]}}\'''',
+            "description": "Test disk space alert with LLM recommendations"
+        },
+        {
+            "name": "HighCPULoad",
+            "severity": "warning",
+            "type": "performance", 
+            "curl_command": f'''curl -X POST http://{hostname}:8080/alert -H "Content-Type: application/json" -d '{{"alerts":[{{"labels":{{"alertname":"HighCPULoad","instance":"{hostname}","severity":"warning"}},"annotations":{{"summary":"Высокая нагрузка на CPU"}},"status":"firing"}}]}}\'''',
+            "description": "Test CPU performance alert with specialized analysis"
+        }
+    ]
     
     return JSONResponse(content={
-        "available_alerts": test_alerts,
+        "message": "🚀 SEED Agent v5 - Universal LLM Processing",
+        "note": "All alerts are processed universally without routing configuration",
+        "test_alerts": test_alerts,
         "total_count": len(test_alerts)
     })
 
