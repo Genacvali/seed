@@ -217,6 +217,14 @@ routing:
         limit: 10
         priority: "high"
         timeout: 30
+        
+    # MongoDB availability monitoring
+    "Сервер MongoDB не запущен":
+      plugin: "mongo_hot"
+      payload:
+        priority: "critical"
+        timeout: 30
+        alert_type: "mongodb_down"
 
 # =============================================================================
 # Plugin Configuration
