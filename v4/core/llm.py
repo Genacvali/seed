@@ -186,7 +186,10 @@ class LLMClient:
                     self.enabled = False
             else:
                 missing = [k for k in required if not gigachat_config.get(k)]
-                logger.warning(f"⚠️ GigaChat config missing/empty keys: {', '.join(missing)} - LLM disabled")
+                if missing:
+                    logger.warning(f"⚠️ GigaChat config missing/empty keys: {', '.join(missing)} - LLM disabled")
+                else:
+                    logger.warning(f"⚠️ GigaChat config section not found or empty - LLM disabled")
         else:
             logger.info("ℹ️ LLM disabled in configuration")
             

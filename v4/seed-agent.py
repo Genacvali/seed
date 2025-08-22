@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-SEED Agent v5 - Universal LLM-powered Alert Processing System
+SEED Agent v4 - Universal LLM-powered Alert Processing System
 
-Improvements in v5:
+Improvements in v4:
 - Simplified architecture: no plugins, no routing configuration
 - Universal LLM-powered alert analysis with specialized prompts
 - Dynamic message formatting based on alert type and severity
@@ -57,7 +57,7 @@ class SeedAgent:
         # Runtime state
         self.is_running = False
         
-        logger.info(f"SEED Agent v5 initialized with config: {config_path}")
+        logger.info(f"SEED Agent v4 initialized with config: {config_path}")
         logger.info(f"Environment: {self.config.get('environment', 'unknown')}")
     
     def _setup_logging(self):
@@ -83,7 +83,7 @@ class SeedAgent:
         import datetime
         self.start_time = datetime.datetime.now()
         
-        logger.info("Starting SEED Agent v5...")
+        logger.info("Starting SEED Agent v4...")
         
         # Validate configuration
         self._validate_startup_config()
@@ -109,7 +109,7 @@ class SeedAgent:
         logger.info("✅ LLM client initialized")
         
         self.is_running = True
-        logger.info("🚀 SEED Agent v5 is ready! Universal LLM processing enabled")
+        logger.info("🚀 SEED Agent v4 is ready! Universal LLM processing enabled")
     
     async def shutdown(self):
         """Cleanup all services"""
@@ -408,9 +408,9 @@ async def lifespan(app: FastAPI):
 
 # Create FastAPI app
 app = FastAPI(
-    title="SEED Agent v5",
+    title="SEED Agent v4",
     description="Universal LLM-powered Alert Processing System",
-    version="5.0.0",
+    version="4.0.0",
     lifespan=lifespan
 )
 
@@ -457,7 +457,7 @@ async def health_check():
         
         health = {
             "status": "healthy",
-            "version": "5.0.0",
+            "version": "4.0.0",
             "environment": seed_agent.config.get("environment", "unknown"),
             "services": {
                 "rabbitmq": True,  # If we're running, RabbitMQ is connected
@@ -484,7 +484,7 @@ async def metrics():
     metrics_data = [
         "# HELP seed_agent_info Information about SEED Agent",
         "# TYPE seed_agent_info gauge",
-        f'seed_agent_info{{version="5.0.0",environment="{seed_agent.config.get("environment", "unknown")}"}} 1',
+        f'seed_agent_info{{version="4.0.0",environment="{seed_agent.config.get("environment", "unknown")}"}} 1',
         "",
         "# HELP seed_agent_up Whether SEED Agent is running",
         "# TYPE seed_agent_up gauge",
@@ -632,7 +632,7 @@ async def dashboard():
                 }
             },
             "agent": {
-                "version": "5.0.0",
+                "version": "4.0.0",
                 "status": "running" if seed_agent.is_running else "stopped",
                 "environment": seed_agent.config.get("environment", "unknown"),
                 "uptime_seconds": int((datetime.datetime.now() - seed_agent.start_time).total_seconds()) if hasattr(seed_agent, 'start_time') else 0
@@ -700,7 +700,7 @@ async def test_alerts():
     ]
     
     return JSONResponse(content={
-        "message": "🚀 SEED Agent v5 - Universal LLM Processing",
+        "message": "🚀 SEED Agent v4 - Universal LLM Processing",
         "note": "All alerts are processed universally without routing configuration",
         "test_alerts": test_alerts,
         "total_count": len(test_alerts)
