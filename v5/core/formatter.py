@@ -7,6 +7,27 @@ import re
 import datetime
 from typing import Dict, Any, List, Optional
 
+def _strip_code_fences(text: str) -> str:
+    """Убираем все ```...``` (с любым языком) из входа"""
+    return re.sub(r"```[a-zA-Z]*\s*([\s\S]*?)```", r"\1", text)
+
+def _pick_commands(lines, limit=5):
+    """Берём до N уникальных командных строк, без мусора"""
+    cmd_re = re.compile(r"^\s*(sudo\s+|systemctl|journalctl|mongo\b|mongosh\b|kubectl|docker|grep\b|find\b|ps\b|df\b|du\b|ss\b|netstat\b|curl\b)\b.*")
+    seen, cmds = set(), []
+    for ln in lines:
+        m = cmd_re.match(ln)
+        if m:
+            s = ln.strip()
+            if s.lower() in ("bash",):  # выкидываем одиночные "bash"
+                continue
+            if s not in seen:
+                seen.add(s)
+                cmds.append(s)
+            if len(cmds) >= limit:
+                break
+    return cmds
+
 class AlertMessageFormatter:
     """Форматтер сообщений алертов для красивого Markdown"""
     
@@ -112,91 +133,44 @@ class AlertMessageFormatter:
     
     @classmethod
     def _extract_brief_info_from_llm(cls, llm_response: str) -> tuple:
-        """
-        Извлекает из LLM ответа максимум 3 пункта проблем + команды
-        Возвращает (problems_text, commands_text)
-        """
-        if not llm_response or llm_response.strip() == "":
-            return "Нет анализа от LLM", "# Анализ недоступен"
+        """Коротко: 2–3 возможные причины + чистый блок команд"""
+        if not llm_response or not llm_response.strip():
+            return "Нет анализа от LLM", "Нет команд"
         
         if "LLM недоступен" in llm_response or "Ошибка LLM" in llm_response:
-            return llm_response, "# LLM недоступен"
-        
-        # Ищем команды в тексте
-        commands = cls._extract_commands_from_text(llm_response)
-        commands_block = commands if commands.strip() else "# Нет команд для диагностики"
-        
-        # Ищем возможные проблемы (первые содержательные строки)
-        problems = cls._extract_problems_from_text(llm_response)
-        problems_block = problems if problems.strip() else "• Нет информации о проблемах"
-        
+            return llm_response, "LLM недоступен"
+
+        # 1) убираем все тройные бэктики и языки
+        clean = _strip_code_fences(llm_response)
+
+        # 2) разобьём на строки
+        lines = [l.rstrip() for l in clean.splitlines() if l.strip()]
+
+        # 3) возможные проблемы: берём первые 3 содержательных пункта
+        problems = []
+        for l in lines:
+            low = l.lower()
+            # фильтруем «воду»
+            if any(t in low for t in ("критичност", "описани", "приоритет")):
+                continue
+            if len(l) < 6:
+                continue
+            # берём либо буллеты, либо короткие предложения
+            if l.lstrip().startswith(("•", "-", "*")) or l.endswith((".", "!", "?")):
+                problems.append(l.lstrip("•-* ").strip())
+            else:
+                # допустим как гипотезу, но не длиннее 120
+                problems.append(l.strip()[:120])
+            if len(problems) >= 3:
+                break
+        problems_block = "\n".join(f"• {p}" for p in problems) if problems else "Нет информации"
+
+        # 4) команды: ищем до 5 уникальных командных строк
+        cmds = _pick_commands(lines, limit=5)
+        commands_block = "\n".join(cmds) if cmds else "Нет команд"
+
         return problems_block, commands_block
     
-    @classmethod
-    def _extract_commands_from_text(cls, text: str) -> str:
-        """Извлекает команды из текста LLM"""
-        # Паттерны команд
-        command_patterns = [
-            r'systemctl\s+\w+\s+[\w\-\.]+',
-            r'journalctl\s+[^\n]+',
-            r'sudo\s+[^\n]+',
-            r'docker\s+[^\n]+',
-            r'kubectl\s+[^\n]+',
-            r'mongo\s+[^\n]+',
-            r'find\s+[^\n]+',
-            r'grep\s+[^\n]+',
-            r'ps\s+[^\n]+',
-            r'du\s+[^\n]+',
-            r'df\s+[^\n]*',
-            r'ls\s+[^\n]*',
-            r'cat\s+[^\n]+',
-            r'tail\s+[^\n]+',
-            r'head\s+[^\n]+',
-            r'service\s+\w+\s+\w+'
-        ]
-        
-        found_commands = []
-        
-        # Ищем команды по всем паттернам
-        for pattern in command_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            found_commands.extend(matches)
-        
-        # Убираем дубликаты и ограничиваем количество
-        unique_commands = list(dict.fromkeys(found_commands))[:5]  # Максимум 5 команд
-        
-        return '\n'.join(unique_commands) if unique_commands else "# Команды не найдены"
-    
-    @classmethod 
-    def _extract_problems_from_text(cls, text: str) -> str:
-        """Извлекает возможные проблемы из текста LLM"""
-        lines = text.split('\n')
-        problems = []
-        
-        for line in lines:
-            line = line.strip()
-            
-            # Пропускаем короткие строки, заголовки, команды
-            if (len(line) < 20 or 
-                line.startswith('#') or 
-                line.startswith('```') or
-                any(cmd in line.lower() for cmd in ['systemctl', 'journalctl', 'sudo', 'docker'])):
-                continue
-            
-            # Ищем строки, описывающие проблемы
-            if any(word in line.lower() for word in [
-                'проблем', 'ошибк', 'недоступ', 'критич', 'заполн', 'нагрузк', 
-                'остановлен', 'упал', 'неисправ', 'некорректн'
-            ]):
-                # Очищаем от лишних символов
-                clean_line = re.sub(r'^[•\-\*\d\.\s]+', '', line).strip()
-                if clean_line and len(clean_line) > 15:
-                    problems.append(f"• {clean_line}")
-                
-                if len(problems) >= 3:  # Максимум 3 проблемы
-                    break
-        
-        return '\n'.join(problems) if problems else "• Анализ проблем недоступен"
     
     @classmethod
     def _format_compact_recommendations(cls, text: str, max_length: int = 500) -> str:
