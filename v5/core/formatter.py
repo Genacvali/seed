@@ -1,43 +1,237 @@
 # -*- coding: utf-8 -*-
 """
-SEED Agent Formatter - Final Fantasy Style
-Стильное оформление сообщений в духе FF с элементами дружелюбности
+SEED Agent v5 Message Formatter
+Единообразное форматирование уведомлений для Mattermost/Slack
 """
-import random
-from typing import Dict, Any, List
+import re
+import datetime
+from typing import Dict, Any, List, Optional
 
-class SEEDFormatter:
-    """S.E.E.D. - Smart Event Explainer & Diagnostics Formatter"""
+class AlertMessageFormatter:
+    """Форматтер сообщений алертов для красивого Markdown"""
     
-    STATUS_ICONS = {
-        "ok": "✅",
-        "warning": "⚠️", 
-        "critical": "🔥",
-        "info": "ℹ️"
+    # Иконки статусов
+    SEVERITY_ICONS = {
+        "critical": "🚨",
+        "high": "⚠️", 
+        "warning": "📊",
+        "info": "ℹ️",
+        "unknown": "❓"
     }
     
-    ADVICE_STARTERS = [
-        "💡 Совет:",
-        "⚡ Рекомендация:", 
-        "🔧 Действие:"
-    ]
+    # Приоритеты
+    PRIORITY_LABELS = {
+        3: "🚨 КРИТИЧЕСКИЙ", 
+        2: "⚠️ ВЫСОКИЙ", 
+        1: "📊 СРЕДНИЙ", 
+        0: "ℹ️ НИЗКИЙ"
+    }
     
     @classmethod
-    def header(cls, title: str, host: str) -> str:
-        """Создает заголовок S.E.E.D."""
-        return f"*S.E.E.D. {title} @ {host}*\n"
-    
-    
-    @classmethod
-    def advice_section(cls, advice_list: List[str]) -> str:
-        """Создает секцию с советами"""
-        if not advice_list:
-            return ""
-            
-        starter = random.choice(cls.ADVICE_STARTERS)
-        advice_text = "\n".join([f"  • {advice}" for advice in advice_list])
+    def format_alert_message(
+        cls, 
+        alertname: str,
+        instance: str,
+        severity: str,
+        priority: int,
+        labels: Dict[str, str],
+        annotations: Dict[str, str],
+        llm_response: str,
+        time_context: str = "",
+        status: str = "firing"
+    ) -> str:
+        """
+        Форматирует сообщение алерта в красивый единообразный Markdown
+        """
+        if status == "resolved":
+            return cls._format_resolved_message(alertname, instance)
         
-        return f"\n{starter}\n{advice_text}"
+        # Получаем иконки и приоритет
+        severity_icon = cls.SEVERITY_ICONS.get(severity.lower(), "📋")
+        priority_text = cls.PRIORITY_LABELS.get(priority, "📋 ОБЫЧНЫЙ")
+        
+        # Время
+        current_time = datetime.datetime.now()
+        time_str = current_time.strftime('%Y-%m-%d %H:%M')
+        
+        # Фильтруем метки (убираем основные)
+        filtered_labels = {
+            k: v for k, v in labels.items() 
+            if k not in ['alertname', 'instance', '__name__']
+        }
+        labels_str = ', '.join([f"{k}={v}" for k, v in filtered_labels.items()]) if filtered_labels else "нет"
+        
+        # Описание
+        description = (
+            annotations.get('summary') or 
+            annotations.get('description') or 
+            'Описание отсутствует'
+        )
+        
+        # Анализируем и форматируем LLM ответ
+        analysis_section = cls._format_llm_analysis(llm_response)
+        
+        # Собираем финальное сообщение
+        message = f"""{severity_icon} **{alertname}**
+
+**Сервер:** {instance}  
+**Время:** {time_str}{time_context}  
+**Метки:** {labels_str}  
+**Описание:** {description}
+
+---
+
+### 🧠 AI Анализ
+{analysis_section}
+
+---
+"""
+        return message.strip()
+    
+    @classmethod
+    def _format_resolved_message(cls, alertname: str, instance: str) -> str:
+        """Форматирует сообщение о решении алерта"""
+        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        
+        return f"""✅ **АЛЕРТ РЕШЕН: {alertname}**
+
+**Сервер:** {instance}  
+**Время решения:** {current_time}  
+
+🎉 Проблема автоматически устранена или решена администратором."""
+    
+    @classmethod
+    def _format_llm_analysis(cls, llm_response: str) -> str:
+        """
+        Форматирует LLM ответ, выделяя команды в код-блоки
+        """
+        if not llm_response or llm_response.strip() == "":
+            return "Анализ недоступен - LLM не ответил"
+        
+        if "LLM недоступен" in llm_response or "Ошибка LLM" in llm_response:
+            return llm_response
+        
+        # Разбираем ответ на секции
+        sections = cls._parse_llm_sections(llm_response)
+        
+        if not sections:
+            # Если не удалось разобрать, возвращаем как есть с минимальной обработкой
+            return cls._extract_commands_to_blocks(llm_response)
+        
+        # Форматируем секции
+        formatted_parts = []
+        
+        for section in sections:
+            if section['type'] == 'analysis':
+                formatted_parts.append(section['content'])
+            elif section['type'] == 'recommendations':
+                formatted_parts.append("### 🛠 Рекомендации")
+                formatted_parts.append(section['content'])
+            elif section['type'] == 'commands':
+                formatted_parts.append("### 📋 Команды для диагностики")
+                formatted_parts.append(section['content'])
+            elif section['type'] == 'next_steps':
+                formatted_parts.append("### 📍 Следующие шаги")
+                formatted_parts.append(section['content'])
+        
+        return "\n\n".join(formatted_parts)
+    
+    @classmethod
+    def _parse_llm_sections(cls, text: str) -> List[Dict[str, str]]:
+        """
+        Пытается разобрать LLM ответ на логические секции
+        """
+        sections = []
+        
+        # Попробуем найти разделы по ключевым словам
+        current_section = ""
+        current_type = "analysis"
+        
+        lines = text.split('\n')
+        
+        for line in lines:
+            line_lower = line.lower().strip()
+            
+            # Определяем тип секции
+            if any(word in line_lower for word in ['рекомендац', 'совет', 'действи', 'решени']):
+                if current_section.strip():
+                    sections.append({'type': current_type, 'content': current_section.strip()})
+                current_section = ""
+                current_type = "recommendations"
+            elif any(word in line_lower for word in ['команд', 'проверк', 'запуск']):
+                if current_section.strip():
+                    sections.append({'type': current_type, 'content': current_section.strip()})
+                current_section = ""
+                current_type = "commands"
+            elif any(word in line_lower for word in ['далее', 'следующ', 'шаги']):
+                if current_section.strip():
+                    sections.append({'type': current_type, 'content': current_section.strip()})
+                current_section = ""
+                current_type = "next_steps"
+            
+            current_section += line + "\n"
+        
+        # Добавляем последнюю секцию
+        if current_section.strip():
+            sections.append({'type': current_type, 'content': current_section.strip()})
+        
+        return sections
+    
+    @classmethod
+    def _extract_commands_to_blocks(cls, text: str) -> str:
+        """
+        Находит команды в тексте и оборачивает их в код-блоки
+        """
+        # Паттерны для поиска команд
+        command_patterns = [
+            r'(systemctl\s+\w+\s+\w+)',
+            r'(journalctl\s+[^\n]+)',
+            r'(sudo\s+[^\n]+)',
+            r'(docker\s+[^\n]+)',
+            r'(kubectl\s+[^\n]+)',
+            r'(mongo\s+[^\n]+)',
+            r'(find\s+[^\n]+)',
+            r'(grep\s+[^\n]+)',
+            r'(ps\s+[^\n]+)',
+            r'(top\s*$)',
+            r'(htop\s*$)',
+            r'(df\s+[^\n]*)',
+            r'(du\s+[^\n]+)',
+        ]
+        
+        formatted_text = text
+        
+        # Находим и форматируем команды
+        for pattern in command_patterns:
+            formatted_text = re.sub(
+                pattern, 
+                lambda m: f"\n```bash\n{m.group(1)}\n```\n", 
+                formatted_text, 
+                flags=re.MULTILINE
+            )
+        
+        # Убираем множественные переносы строк
+        formatted_text = re.sub(r'\n\n\n+', '\n\n', formatted_text)
+        
+        return formatted_text.strip()
+    
+    @classmethod
+    def format_system_status(cls, host: str, cpu_info: str, ram_info: str, disk_info: List[str]) -> str:
+        """Форматирует статус системы (для совместимости со старым кодом)"""
+        message = f"### 📊 Статус системы {host}\n\n"
+        
+        if cpu_info and cpu_info != "n/a":
+            message += f"🖥️ **CPU:** {cpu_info}\n"
+        
+        if ram_info and ram_info != "n/a":
+            message += f"🧠 **Memory:** {ram_info}\n"
+        
+        if disk_info:
+            message += f"💾 **Storage:**\n"
+            for disk in disk_info:
+                message += f"  • {disk}\n"
+        
+        return message
     
     @classmethod
     def disk_status(cls, path: str, used_gb: float, total_gb: float, 

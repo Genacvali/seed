@@ -31,6 +31,7 @@ from core.queue import QueueManager
 from core.redis_throttle import RedisThrottler
 from core.notify import NotificationManager
 from core.llm import LLMClient
+from core.formatter import AlertMessageFormatter
 
 # Setup logging
 logging.basicConfig(
@@ -286,22 +287,18 @@ class SeedAgent:
             if hasattr(self, 'llm_client') and self.llm_client:
                 llm_response = await self.llm_client.get_completion(llm_input)
             
-            # Format final message
-            formatted_message = f"""
-{severity_emoji} **{priority_text}: {alertname}**
-
-📍 **Сервер:** `{instance}`
-⏰ **Время:** `{current_time.strftime('%Y-%m-%d %H:%M:%S')}`{time_context}
-🏷️ **Метки:** {', '.join([f"`{k}={v}`" for k, v in labels.items() if k not in ['alertname', 'instance']])}
-
-**📋 Описание:**
-{annotations.get('summary', annotations.get('description', 'Нет описания'))}
-
-**🤖 AI Анализ:**
-```
-{llm_response}
-```
-"""
+            # Format final message using new formatter
+            formatted_message = AlertMessageFormatter.format_alert_message(
+                alertname=alertname,
+                instance=instance,
+                severity=severity,
+                priority=priority_score,
+                labels=labels,
+                annotations=annotations,
+                llm_response=llm_response,
+                time_context=time_context,
+                status=status
+            )
             
             return {
                 "success": True,
@@ -361,21 +358,22 @@ class SeedAgent:
     
     async def _handle_alert_resolution(self, alert_data: Dict[str, str]) -> Dict[str, Any]:
         """🔄 Handle alert resolution"""
-        import datetime
-        
         labels = alert_data.get("labels", {})
         alertname = labels.get("alertname", "Unknown Alert")
         instance = labels.get("instance", "unknown")
         
-        # Calculate resolution time (if we have start time)
-        resolved_message = f"""
-✅ **АЛЕРТ РЕШЕН: {alertname}**
-
-📍 **Сервер:** `{instance}`
-⏰ **Время решения:** `{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}`
-
-🎉 Проблема автоматически устранена или решена администратором.
-"""
+        # Use the new formatter for resolved messages
+        resolved_message = AlertMessageFormatter.format_alert_message(
+            alertname=alertname,
+            instance=instance,
+            severity="info",
+            priority=0,
+            labels=labels,
+            annotations={},
+            llm_response="",
+            time_context="",
+            status="resolved"
+        )
         
         return {
             "success": True,
