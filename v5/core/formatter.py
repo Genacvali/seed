@@ -19,6 +19,15 @@ class AlertMessageFormatter:
         "unknown": "❔"       # fancy question
     }
     
+    # Цветовые коды для Mattermost attachments
+    SEVERITY_COLORS = {
+        "critical": "#FF0000",   # красный
+        "high": "#FF4500",      # оранжево-красный
+        "warning": "#FFA500",   # жёлтый
+        "info": "#36A2EB",      # синий
+        "unknown": "#808080"    # серый
+    }
+    
     # Приоритеты
     PRIORITY_LABELS = {
         3: "🚨 КРИТИЧЕСКИЙ", 
@@ -63,24 +72,28 @@ class AlertMessageFormatter:
         # Парсим LLM-ответ на проблемы и команды
         problems, commands = cls._extract_brief_info_from_llm(llm_response)
         
+        # Компактные рекомендации
+        compact_problems = cls._format_compact_recommendations(problems)
+        compact_commands = cls._format_compact_recommendations(commands, max_length=300)
+        
         # Собираем лаконичное сообщение
         message = f"""{severity_icon} **{alertname} ({severity.upper()})**
 
-**Сервер:** {instance}  
-**Время:** {time_str}{time_context}  
-**Описание:** {description}
+📍 **Сервер:** {instance}  
+⏰ **Время:** {time_str}{time_context}  
+📝 **Описание:** {description}
 
 ---
 
-### Возможные проблемы:
-{problems}
+### 🔍 Возможные проблемы:
+{compact_problems}
 
-### Рекомендации:
+### 🛠 Рекомендации:
 ```bash
-{commands}
+{compact_commands}
 ```
 
-— SEED ✨"""
+— Powered by 🌌 SEED ✨"""
         return message.strip()
     
     @classmethod
@@ -184,6 +197,29 @@ class AlertMessageFormatter:
                     break
         
         return '\n'.join(problems) if problems else "• Анализ проблем недоступен"
+    
+    @classmethod
+    def _format_compact_recommendations(cls, text: str, max_length: int = 500) -> str:
+        """Сжимает рекомендации от LLM, чтобы не захламлять Mattermost"""
+        if not text or text.strip() == "":
+            return "• Нет рекомендаций"
+        
+        # Если текст короткий, возвращаем как есть
+        if len(text) <= max_length:
+            return text.strip()
+        
+        # Обрезаем по словам, чтобы не порвать предложение
+        truncated = text[:max_length]
+        last_space = truncated.rfind(' ')
+        if last_space > max_length * 0.8:  # Если пробел не слишком близко к началу
+            truncated = truncated[:last_space]
+        
+        return truncated + "\n\n... 🔎 *Полный текст в seed-agent.log*"
+    
+    @classmethod
+    def get_severity_color(cls, severity: str) -> str:
+        """Возвращает цветовой код для severity"""
+        return cls.SEVERITY_COLORS.get(severity.lower(), "#808080")
     
     @classmethod
     def format_system_status(cls, host: str, cpu_info: str, ram_info: str, disk_info: List[str]) -> str:

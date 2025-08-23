@@ -58,7 +58,7 @@ class SeedAgent:
         # Runtime state
         self.is_running = False
         
-        logger.info(f"SEED Agent v5 initialized with config: {config_path}")
+        logger.info(f"🌌 SEED v5 initialized with config: {config_path}")
         logger.info(f"Environment: {self.config.get('environment', 'unknown')}")
     
     def _setup_logging(self):
@@ -84,7 +84,7 @@ class SeedAgent:
         import datetime
         self.start_time = datetime.datetime.now()
         
-        logger.info("Starting SEED Agent v5...")
+        logger.info("🚀 Starting 🌌 SEED v5...")
         
         # Validate configuration
         self._validate_startup_config()
@@ -110,11 +110,11 @@ class SeedAgent:
         logger.info("✅ LLM client initialized")
         
         self.is_running = True
-        logger.info("🚀 SEED Agent v5 is ready! Universal LLM processing enabled")
+        logger.info("🚀 🌌 SEED v5 is ready! Universal LLM processing enabled")
     
     async def shutdown(self):
         """Cleanup all services"""
-        logger.info("Shutting down SEED Agent...")
+        logger.info("Shutting down 🌌 SEED...")
         
         self.is_running = False
         
@@ -124,7 +124,7 @@ class SeedAgent:
         if self.notification_manager:
             await self.notification_manager.close()
         
-        logger.info("✅ SEED Agent shutdown complete")
+        logger.info("✅ 🌌 SEED shutdown complete")
     
     def _validate_startup_config(self):
         """Validate critical configuration at startup"""

@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any, Optional
 import httpx
 from .config import Config
+from .formatter import AlertMessageFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -52,18 +53,23 @@ class NotificationManager:
         required_fields = ["smtp_host", "smtp_user", "smtp_password", "from_email", "to_emails"]
         return all(self.email_config.get(field) for field in required_fields)
     
-    async def send_mattermost_message(self, text: str, channel: Optional[str] = None) -> bool:
-        """Send message to Mattermost"""
+    async def send_mattermost_message(self, text: str, channel: Optional[str] = None, severity: str = "info") -> bool:
+        """Send message to Mattermost with color attachments"""
         if not self.mattermost_config.get("enabled") or not self.mattermost_config.get("webhook_url"):
             logger.debug("Mattermost not configured, skipping notification")
             return False
         
         channel = channel or self.mattermost_config.get("channel", "alerts")
         
+        # Создаем payload с цветными attachments
         payload = {
-            "text": text,
-            "username": self.mattermost_config.get("username", "SEED-Agent"),
-            "icon_emoji": self.mattermost_config.get("icon_emoji", ":robot_face:")
+            "username": self.mattermost_config.get("username", "🌌 SEED"),
+            "icon_emoji": self.mattermost_config.get("icon_emoji", ":crystal_ball:"),
+            "attachments": [{
+                "color": AlertMessageFormatter.get_severity_color(severity),
+                "text": text,
+                "mrkdwn_in": ["text"]
+            }]
         }
         if self.mattermost_config.get("channel"):
             payload["channel"] = self.mattermost_config["channel"]
@@ -154,7 +160,7 @@ class NotificationManager:
         # Try Mattermost
         if self.mattermost_config.get("enabled"):
             logger.debug(f"   Trying Mattermost (webhook: {self.mattermost_config.get('webhook_url', 'not set')[:50]}...)")
-            if await self.send_mattermost_message(notification_message):
+            if await self.send_mattermost_message(notification_message, severity=severity):
                 sent_channels.append("Mattermost")
         else:
             logger.debug("   Mattermost disabled in config")
