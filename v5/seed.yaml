@@ -81,8 +81,8 @@ notifications:
   mattermost:
     enabled: true
     webhook_url: "https://mm.sberdevices.ru/hooks/p5777ztncinjxbetyeanw3dwqa"
-    username: "SEED-Agent"
-    icon_emoji: ":robot_face:"
+    username: "SEED"
+    icon_emoji: ":crystal_ball:"
     verify_ssl: false
     
   # Slack webhook - configure your webhook URL  
@@ -90,7 +90,7 @@ notifications:
     enabled: false
     webhook_url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
     channel: "#alerts"
-    username: "SEED-Agent"
+    username: "SEED"
     
   # Email notifications (SMTP) - configure your SMTP settings
   email:

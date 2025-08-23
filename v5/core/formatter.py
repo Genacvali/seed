@@ -10,13 +10,13 @@ from typing import Dict, Any, List, Optional
 class AlertMessageFormatter:
     """Форматтер сообщений алертов для красивого Markdown"""
     
-    # Иконки статусов
+    # Иконки статусов в Final Fantasy стиле
     SEVERITY_ICONS = {
-        "critical": "🚨",
-        "high": "⚠️", 
-        "warning": "📊",
-        "info": "ℹ️",
-        "unknown": "❓"
+        "critical": "💎🔥",   # crystal + danger
+        "high": "⚔️",        # crossed blades
+        "warning": "🛡️",     # shield
+        "info": "✨",         # sparkle
+        "unknown": "❔"       # fancy question
     }
     
     # Приоритеты
@@ -78,7 +78,9 @@ class AlertMessageFormatter:
 ### Рекомендации:
 ```bash
 {commands}
-```"""
+```
+
+— SEED ✨"""
         return message.strip()
     
     @classmethod
@@ -91,7 +93,9 @@ class AlertMessageFormatter:
 **Сервер:** {instance}  
 **Время решения:** {current_time}  
 
-🎉 Проблема автоматически устранена или решена администратором."""
+🎉 Проблема автоматически устранена или решена администратором.
+
+— SEED ✨"""
     
     @classmethod
     def _extract_brief_info_from_llm(cls, llm_response: str) -> tuple:
