@@ -41,25 +41,17 @@ class AlertMessageFormatter:
         status: str = "firing"
     ) -> str:
         """
-        Форматирует сообщение алерта в красивый единообразный Markdown
+        Форматирует сообщение в лаконичный красивый Markdown
         """
         if status == "resolved":
             return cls._format_resolved_message(alertname, instance)
         
-        # Получаем иконки и приоритет
+        # Получаем иконки 
         severity_icon = cls.SEVERITY_ICONS.get(severity.lower(), "📋")
-        priority_text = cls.PRIORITY_LABELS.get(priority, "📋 ОБЫЧНЫЙ")
         
         # Время
         current_time = datetime.datetime.now()
         time_str = current_time.strftime('%Y-%m-%d %H:%M')
-        
-        # Фильтруем метки (убираем основные)
-        filtered_labels = {
-            k: v for k, v in labels.items() 
-            if k not in ['alertname', 'instance', '__name__']
-        }
-        labels_str = ', '.join([f"{k}={v}" for k, v in filtered_labels.items()]) if filtered_labels else "нет"
         
         # Описание
         description = (
@@ -68,24 +60,25 @@ class AlertMessageFormatter:
             'Описание отсутствует'
         )
         
-        # Анализируем и форматируем LLM ответ
-        analysis_section = cls._format_llm_analysis(llm_response)
+        # Парсим LLM-ответ на проблемы и команды
+        problems, commands = cls._extract_brief_info_from_llm(llm_response)
         
-        # Собираем финальное сообщение
-        message = f"""{severity_icon} **{alertname}**
+        # Собираем лаконичное сообщение
+        message = f"""{severity_icon} **{alertname} ({severity.upper()})**
 
 **Сервер:** {instance}  
 **Время:** {time_str}{time_context}  
-**Метки:** {labels_str}  
 **Описание:** {description}
 
 ---
 
-### 🧠 AI Анализ
-{analysis_section}
+### Возможные проблемы:
+{problems}
 
----
-"""
+### Рекомендации:
+```bash
+{commands}
+```"""
         return message.strip()
     
     @classmethod
@@ -101,119 +94,92 @@ class AlertMessageFormatter:
 🎉 Проблема автоматически устранена или решена администратором."""
     
     @classmethod
-    def _format_llm_analysis(cls, llm_response: str) -> str:
+    def _extract_brief_info_from_llm(cls, llm_response: str) -> tuple:
         """
-        Форматирует LLM ответ, выделяя команды в код-блоки
+        Извлекает из LLM ответа максимум 3 пункта проблем + команды
+        Возвращает (problems_text, commands_text)
         """
         if not llm_response or llm_response.strip() == "":
-            return "Анализ недоступен - LLM не ответил"
+            return "Нет анализа от LLM", "# Анализ недоступен"
         
         if "LLM недоступен" in llm_response or "Ошибка LLM" in llm_response:
-            return llm_response
+            return llm_response, "# LLM недоступен"
         
-        # Разбираем ответ на секции
-        sections = cls._parse_llm_sections(llm_response)
+        # Ищем команды в тексте
+        commands = cls._extract_commands_from_text(llm_response)
+        commands_block = commands if commands.strip() else "# Нет команд для диагностики"
         
-        if not sections:
-            # Если не удалось разобрать, возвращаем как есть с минимальной обработкой
-            return cls._extract_commands_to_blocks(llm_response)
+        # Ищем возможные проблемы (первые содержательные строки)
+        problems = cls._extract_problems_from_text(llm_response)
+        problems_block = problems if problems.strip() else "• Нет информации о проблемах"
         
-        # Форматируем секции
-        formatted_parts = []
-        
-        for section in sections:
-            if section['type'] == 'analysis':
-                formatted_parts.append(section['content'])
-            elif section['type'] == 'recommendations':
-                formatted_parts.append("### 🛠 Рекомендации")
-                formatted_parts.append(section['content'])
-            elif section['type'] == 'commands':
-                formatted_parts.append("### 📋 Команды для диагностики")
-                formatted_parts.append(section['content'])
-            elif section['type'] == 'next_steps':
-                formatted_parts.append("### 📍 Следующие шаги")
-                formatted_parts.append(section['content'])
-        
-        return "\n\n".join(formatted_parts)
+        return problems_block, commands_block
     
     @classmethod
-    def _parse_llm_sections(cls, text: str) -> List[Dict[str, str]]:
-        """
-        Пытается разобрать LLM ответ на логические секции
-        """
-        sections = []
-        
-        # Попробуем найти разделы по ключевым словам
-        current_section = ""
-        current_type = "analysis"
-        
-        lines = text.split('\n')
-        
-        for line in lines:
-            line_lower = line.lower().strip()
-            
-            # Определяем тип секции
-            if any(word in line_lower for word in ['рекомендац', 'совет', 'действи', 'решени']):
-                if current_section.strip():
-                    sections.append({'type': current_type, 'content': current_section.strip()})
-                current_section = ""
-                current_type = "recommendations"
-            elif any(word in line_lower for word in ['команд', 'проверк', 'запуск']):
-                if current_section.strip():
-                    sections.append({'type': current_type, 'content': current_section.strip()})
-                current_section = ""
-                current_type = "commands"
-            elif any(word in line_lower for word in ['далее', 'следующ', 'шаги']):
-                if current_section.strip():
-                    sections.append({'type': current_type, 'content': current_section.strip()})
-                current_section = ""
-                current_type = "next_steps"
-            
-            current_section += line + "\n"
-        
-        # Добавляем последнюю секцию
-        if current_section.strip():
-            sections.append({'type': current_type, 'content': current_section.strip()})
-        
-        return sections
-    
-    @classmethod
-    def _extract_commands_to_blocks(cls, text: str) -> str:
-        """
-        Находит команды в тексте и оборачивает их в код-блоки
-        """
-        # Паттерны для поиска команд
+    def _extract_commands_from_text(cls, text: str) -> str:
+        """Извлекает команды из текста LLM"""
+        # Паттерны команд
         command_patterns = [
-            r'(systemctl\s+\w+\s+\w+)',
-            r'(journalctl\s+[^\n]+)',
-            r'(sudo\s+[^\n]+)',
-            r'(docker\s+[^\n]+)',
-            r'(kubectl\s+[^\n]+)',
-            r'(mongo\s+[^\n]+)',
-            r'(find\s+[^\n]+)',
-            r'(grep\s+[^\n]+)',
-            r'(ps\s+[^\n]+)',
-            r'(top\s*$)',
-            r'(htop\s*$)',
-            r'(df\s+[^\n]*)',
-            r'(du\s+[^\n]+)',
+            r'systemctl\s+\w+\s+[\w\-\.]+',
+            r'journalctl\s+[^\n]+',
+            r'sudo\s+[^\n]+',
+            r'docker\s+[^\n]+',
+            r'kubectl\s+[^\n]+',
+            r'mongo\s+[^\n]+',
+            r'find\s+[^\n]+',
+            r'grep\s+[^\n]+',
+            r'ps\s+[^\n]+',
+            r'du\s+[^\n]+',
+            r'df\s+[^\n]*',
+            r'ls\s+[^\n]*',
+            r'cat\s+[^\n]+',
+            r'tail\s+[^\n]+',
+            r'head\s+[^\n]+',
+            r'service\s+\w+\s+\w+'
         ]
         
-        formatted_text = text
+        found_commands = []
         
-        # Находим и форматируем команды
+        # Ищем команды по всем паттернам
         for pattern in command_patterns:
-            formatted_text = re.sub(
-                pattern, 
-                lambda m: f"\n```bash\n{m.group(1)}\n```\n", 
-                formatted_text, 
-                flags=re.MULTILINE
-            )
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            found_commands.extend(matches)
         
-        # Убираем множественные переносы строк
-        formatted_text = re.sub(r'\n\n\n+', '\n\n', formatted_text)
+        # Убираем дубликаты и ограничиваем количество
+        unique_commands = list(dict.fromkeys(found_commands))[:5]  # Максимум 5 команд
         
-        return formatted_text.strip()
+        return '\n'.join(unique_commands) if unique_commands else "# Команды не найдены"
+    
+    @classmethod 
+    def _extract_problems_from_text(cls, text: str) -> str:
+        """Извлекает возможные проблемы из текста LLM"""
+        lines = text.split('\n')
+        problems = []
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Пропускаем короткие строки, заголовки, команды
+            if (len(line) < 20 or 
+                line.startswith('#') or 
+                line.startswith('```') or
+                any(cmd in line.lower() for cmd in ['systemctl', 'journalctl', 'sudo', 'docker'])):
+                continue
+            
+            # Ищем строки, описывающие проблемы
+            if any(word in line.lower() for word in [
+                'проблем', 'ошибк', 'недоступ', 'критич', 'заполн', 'нагрузк', 
+                'остановлен', 'упал', 'неисправ', 'некорректн'
+            ]):
+                # Очищаем от лишних символов
+                clean_line = re.sub(r'^[•\-\*\d\.\s]+', '', line).strip()
+                if clean_line and len(clean_line) > 15:
+                    problems.append(f"• {clean_line}")
+                
+                if len(problems) >= 3:  # Максимум 3 проблемы
+                    break
+        
+        return '\n'.join(problems) if problems else "• Анализ проблем недоступен"
     
     @classmethod
     def format_system_status(cls, host: str, cpu_info: str, ram_info: str, disk_info: List[str]) -> str:
