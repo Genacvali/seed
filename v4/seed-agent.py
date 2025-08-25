@@ -414,6 +414,74 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Zabbix severity mapping to Alertmanager format
+SEVERITY_MAP = {
+    "disaster": "critical",
+    "high": "high", 
+    "average": "warning",
+    "warning": "warning",
+    "information": "info",
+    "not classified": "info",
+}
+
+
+@app.post("/zabbix")
+async def zabbix_webhook(payload: Dict[str, Any]):
+    """
+    Принимает нативные поля Zabbix (через Webhook Media Type) и конвертирует в формат Alertmanager.
+    Ожидаемые ключи (минимум): event, trigger, host, item — см. media type ниже.
+    """
+    if not seed_agent:
+        raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+
+    try:
+        e   = payload.get("event", {})      # {value, date, time, r_date, r_time}
+        trg = payload.get("trigger", {})    # {name, description, severity_text}
+        h   = payload.get("host", {})       # {name}
+        it  = payload.get("item", {})       # {name, lastvalue, port}
+
+        # status: 1 = Problem → firing, 0 = OK → resolved
+        status = "firing" if str(e.get("value", "1")) == "1" else "resolved"
+
+        severity_text = (trg.get("severity_text") or "information").lower()
+        severity = SEVERITY_MAP.get(severity_text, "info")
+
+        instance = f"{h.get('name','unknown')}:{it.get('port','0')}"
+        summary = trg.get("description") or trg.get("name") or "Zabbix Alert"
+        description = f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
+
+        starts_at = None
+        if e.get("date") and e.get("time"):
+            starts_at = f"{e['date']}T{e['time']}Z"
+
+        ends_at = None
+        if status == "resolved" and e.get("r_date") and e.get("r_time"):
+            ends_at = f"{e['r_date']}T{e['r_time']}Z"
+
+        alert = {
+            "status": status,
+            "labels": {
+                "alertname": trg.get("name", "ZabbixAlert"),
+                "instance": instance,
+                "severity": severity,
+                "job": "zabbix",
+                "host": h.get("name", "unknown"),
+            },
+            "annotations": {
+                "summary": summary,
+                "description": description,
+            },
+            "startsAt": starts_at,
+            "endsAt": ends_at,
+        }
+
+        result = await seed_agent.process_alert({"alerts": [alert]})
+        return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
+
+    except Exception as ex:
+        logger.exception("Zabbix webhook error")
+        raise HTTPException(status_code=400, detail=str(ex))
+
 
 @app.post("/alert")
 async def receive_alert(alert_payload: Dict[str, Any]):
