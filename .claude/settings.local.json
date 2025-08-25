@@ -32,7 +32,8 @@
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
       "D:\\data\\seed",
-      "D:\\WorkNotes"
+      "D:\\WorkNotes",
+      "D:\\d\\WorkNotes"
     ]
   }
 }
