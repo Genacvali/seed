@@ -18,13 +18,21 @@
       "Bash(whereis:*)",
       "Bash(./start.sh:*)",
       "Bash(curl:*)",
-      "Bash(where python)"
+      "Bash(where python)",
+      "Read(/D:\\WorkNotes/**)",
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Read(/D:\\WorkNotes\\budet/**)"
     ],
     "deny": [],
     "ask": [],
     "defaultMode": "acceptEdits",
     "additionalDirectories": [
-      "D:\\data\\seed"
+      "D:\\data\\seed",
+      "D:\\WorkNotes"
     ]
   }
 }
