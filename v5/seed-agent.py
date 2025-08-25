@@ -725,6 +725,50 @@ async def test_alerts():
     })
 
 
+SEVERITY_MAP = {
+    "disaster": "critical",
+    "high": "high",
+    "average": "warning",
+    "warning": "warning",
+    "information": "info",
+    "not classified": "info",
+}
+
+@app.post("/zabbix")
+async def zabbix_webhook(payload: Dict[str, Any]):
+    if not seed_agent:
+        raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+
+    e   = payload.get("event", {})
+    trg = payload.get("trigger", {})
+    h   = payload.get("host", {})
+    it  = payload.get("item", {})
+
+    status = "firing" if str(e.get("value", "1")) == "1" else "resolved"
+    severity = SEVERITY_MAP.get((trg.get("severity_text") or "information").lower(), "info")
+
+    instance = f"{h.get('name','unknown')}:{it.get('port','0')}"
+    alert = {
+        "status": status,
+        "labels": {
+            "alertname": trg.get("name", "ZabbixAlert"),
+            "instance": instance,
+            "severity": severity,
+            "job": "zabbix",
+            "host": h.get("name", "unknown"),
+        },
+        "annotations": {
+            "summary": trg.get("description") or trg.get("name") or "Zabbix Alert",
+            "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}",
+        },
+        "startsAt": (f"{e['date']}T{e['time']}Z" if e.get("date") and e.get("time") else None),
+        "endsAt": (f"{e['r_date']}T{e['r_time']}Z" if status == "resolved" and e.get("r_date") and e.get("r_time") else None),
+    }
+
+    result = await seed_agent.process_alert({"alerts": [alert]})
+    return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
+
+
 def main():
     """Main entry point"""
     import argparse
