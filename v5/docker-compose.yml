@@ -44,4 +44,14 @@ services:
 
 volumes:
   redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/redis
   rabbitmq_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /data/rabbitmq
