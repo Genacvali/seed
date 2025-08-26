@@ -16,10 +16,16 @@ fi
 # Create /data directory and subdirectories
 echo "📁 Creating /data directory structure..."
 mkdir -p /data/docker
+mkdir -p /data/docker/tmp
 mkdir -p /data/logs
+mkdir -p /data/redis
+mkdir -p /data/rabbitmq
 chmod 755 /data
 chmod 755 /data/docker
+chmod 755 /data/docker/tmp
 chmod 755 /data/logs
+chmod 755 /data/redis
+chmod 755 /data/rabbitmq
 
 # Stop Docker service
 echo "⏹️ Stopping Docker service..."

@@ -30,7 +30,18 @@ if ! docker image inspect redis:7.2-alpine &>/dev/null || ! docker image inspect
         for tar_file in images/*.tar; do
             if [[ -f "$tar_file" ]]; then
                 echo "Loading $(basename "$tar_file")..."
-                docker load -i "$tar_file"
+                # Check if Docker daemon is ready
+                if ! docker version &>/dev/null; then
+                    echo "❌ Docker daemon not ready. Please run: sudo ./fix-docker-tmp.sh"
+                    exit 1
+                fi
+                if docker load -i "$tar_file"; then
+                    echo "✅ Successfully loaded $(basename "$tar_file")"
+                else
+                    echo "❌ Failed to load $(basename "$tar_file")"
+                    echo "💡 Try running: sudo ./fix-docker-tmp.sh first"
+                    exit 1
+                fi
             fi
         done
         
