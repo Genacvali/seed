@@ -823,7 +823,8 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "job": "zabbix",
                     "host": host,
                     "trigger_id": trg.get("id", ""),
-                    "event_id": e.get("id", "")
+                    "event_id": e.get("id", ""),
+                    "host_ip": h.get("ip", "")
                 },
                 "annotations": {
                     "summary": trg.get("description") or trg.get("name") or subject or "Zabbix Alert",
@@ -868,6 +869,9 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "severity": severity,
                     "job": "zabbix",
                     "host": host,
+                    "trigger_id": trg.get("id", ""),
+                    "event_id": e.get("id", ""),
+                    "host_ip": h.get("ip", "")
                 },
                 "annotations": {
                     "summary": trg.get("description") or trg.get("name") or subject or "Zabbix Alert",
@@ -932,7 +936,8 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
             "instance": instance,
             "severity": severity,
             "job": "zabbix",
-            "host": host
+            "host": host,
+            "host_ip": payload.get("host_ip", "")
         },
         "annotations": {
             "summary": subject or "Zabbix Alert",
@@ -969,6 +974,9 @@ async def zabbix_webhook(payload: Dict[str, Any]):
                 "severity": severity,
                 "job": "zabbix",
                 "host": h.get("name", "unknown"),
+                "trigger_id": trg.get("id", ""),
+                "event_id": e.get("id", ""),
+                "host_ip": h.get("ip", "")
             },
             "annotations": {
                 "summary": trg.get("description") or trg.get("name") or "Zabbix Alert",

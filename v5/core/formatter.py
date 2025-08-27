@@ -115,15 +115,42 @@ class AlertMessageFormatter:
         compact_problems = cls._format_compact_recommendations(problems)
         compact_commands = cls._format_compact_recommendations(commands, max_length=300)
         
-        # Компактный формат в стиле вашего примера
-        header_line = f"{status_icon} {instance}: {alertname}"
+        # Компактный формат адаптированный под стиль другого media type
+        
+        # Извлекаем hostname и IP (если есть)
+        hostname = cls._extract_hostname_from_instance(instance)
+        host_ip = labels.get('host_ip', labels.get('ip', ''))
+        
+        # Генерируем случайный 4-значный ID4
+        import random
+        id4 = random.randint(1000, 9999)
+        
+        # Формируем сообщение в стиле вашего media type
+        header_line = f"{status_icon} **{hostname}**: {alertname}"
         if description:
             header_line += f" {description}"
             
+        # Основная строка метаданных  
+        meta_line = f"📍 Production // {severity_icon}{severity.upper()} // #T{alert_id} {id4}"
+        
+        # Техническая строка
+        tech_line = f"🔌 {tech_tags}"
+        
+        # Временная строка
+        time_line = f"📆 {date_str}{time_context}"
+        
+        # Идентификационная строка (как Z{EVENT.ID} // {HOST.NAME} // {HOST.IP})
+        if host_ip:
+            id_line = f"Z{alert_id} // {hostname} // {host_ip}"
+        else:
+            id_line = f"Z{alert_id} // {hostname}"
+            
         message = f"""{header_line}
-📍 Production // {severity_icon}{severity.upper()} // #{alert_id}
-🔌 {tech_tags}
-📆 {time_str} - {date_str}{time_context}
+{meta_line}
+{tech_line}
+{time_line}
+
+{id_line}
 
 ### 💎 Возможные проблемы:
 {compact_problems}
@@ -195,16 +222,23 @@ class AlertMessageFormatter:
     
     @classmethod
     def _generate_alert_id(cls, labels: Dict[str, str]) -> str:
-        """Генерирует компактный ID алерта"""
+        """Генерирует компактный ID алерта в стиле TRIGGER.ID"""
         import hashlib
         import random
+        import time
         
-        # Создаем ID на основе alertname + instance + случайность
-        base_str = f"{labels.get('alertname', 'unknown')}{labels.get('instance', 'unknown')}"
-        hash_part = hashlib.md5(base_str.encode()).hexdigest()[:4].upper()
-        random_part = random.randint(1000, 9999)
+        # Проверяем, есть ли реальный trigger_id из Zabbix
+        if 'trigger_id' in labels:
+            return labels['trigger_id']
         
-        return f"T{hash_part}{random_part}"
+        # Создаем ID на основе alertname + instance + timestamp
+        base_str = f"{labels.get('alertname', 'unknown')}{labels.get('instance', 'unknown')}{int(time.time())}"
+        hash_part = hashlib.md5(base_str.encode()).hexdigest()[:6]
+        
+        # Конвертируем hex в десятичное число для похожести на TRIGGER.ID
+        trigger_like_id = int(hash_part, 16) % 999999
+        
+        return str(trigger_like_id)
     
     @classmethod
     def _build_tech_tags(cls, labels: Dict[str, str], instance: str) -> str:
@@ -261,6 +295,13 @@ class AlertMessageFormatter:
                 break
                 
         return ', '.join(tags[:8])  # Ограничиваем количество тегов
+    
+    @classmethod
+    def _extract_hostname_from_instance(cls, instance: str) -> str:
+        """Извлекает hostname из instance (убирает порт)"""
+        if ':' in instance:
+            return instance.split(':')[0]
+        return instance
     
     
     @classmethod
