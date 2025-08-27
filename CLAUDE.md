@@ -4,27 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SEED Agent v4/v5 - компактная система мониторинга и уведомлений с единой архитектурой.
+SEED Agent v5 - универсальная LLM-powered система обработки алертов с поддержкой мониторинга production окружений. Компактная архитектура с поддержкой GigaChat LLM, цветными уведомлениями и Final Fantasy стилизацией.
 
 ## Project Structure
 
-The project contains two main versions:
-- **v4/**: Current stable version with simplified architecture
-- **v5/**: Enhanced version with FF-styled branding, colored notifications, and compact formatting
+This repository contains:
+- **v5/**: Production-ready enhanced version with FF-styled branding, colored notifications, and compact formatting
+- **zabbix-webhook scripts**: Integration scripts for Zabbix monitoring systems
+- **Docker configuration files**: For infrastructure setup and deployment
 
-### Core Architecture (Both Versions)
+### Core Architecture
 - **seed-agent.py**: Main FastAPI HTTP server (port 8080)  
 - **core/**: Core modules for alert processing
   - `config.py`: Configuration management with YAML and .env support
-  - `alert_processor.py`: Alert processing and lifecycle management
+  - `alert_processor.py`: Alert processing and lifecycle management with plugin support
   - `llm.py`: LLM integration (GigaChat) for intelligent alert analysis
-  - `notify.py`: Multi-channel notification system (Mattermost, Slack, Email)
+  - `notify.py` & `notify_enhanced.py`: Multi-channel notification system (Mattermost, Slack, Email)
   - `queue.py`: RabbitMQ queue management
   - `redis_throttle.py`: Redis-based throttling and caching
-  - `formatter.py`: Message formatting (v5 has enhanced FF-style formatting)
-- **fetchers/**: Data fetchers for external systems (MongoDB, Telegraf) - v4 only
+  - `formatter.py`: Message formatting with FF-style emoji icons and color support
+  - `message_tracker.py`: Message tracking and deduplication
 - **seed.yaml**: Main configuration file
 - **seed.env**: Environment variables (credentials)
+- **docker-compose.yml**: Infrastructure services (Redis, RabbitMQ)
 
 ### v5 Enhancements
 - **🌌 SEED Branding**: Final Fantasy themed bot identity with crystal ball icon
@@ -36,24 +38,21 @@ The project contains two main versions:
 
 ### Starting/Stopping the System
 ```bash
-# For v4
-cd v4/
-./start.sh    # Start full stack (Redis, RabbitMQ, SEED Agent)
-./stop.sh     # Stop all services
-
-# For v5 (same commands)
 cd v5/
-./start.sh    # Start with enhanced FF branding
+./start.sh    # Start full stack (Redis, RabbitMQ, SEED Agent with FF branding)
 ./stop.sh     # Stop all services
 ```
 
 ### Testing
 ```bash
-# Comprehensive smoke test (available in both versions)
+# Comprehensive smoke test with LLM and Mattermost verification
 ./smoke-test.sh
 
-# Manual test alerts (v4 only)
-python3 test_alerts.py
+# Test new compact message format
+python3 test_new_format.py
+
+# Enhanced format demo
+python3 enhanced_format_demo.py
 
 # Health check
 curl http://localhost:8080/health
@@ -76,23 +75,25 @@ pip3 install -r requirements.txt
 python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml, requests, dotenv"
 ```
 
-### Build and Deployment
+### Docker Management
 ```bash
-# Build binary (requires PyInstaller)
-./build-agent.sh
+# Docker image management (for offline deployment)
+./export-images.sh            # Export images to tar files (run on online machine)
+./load-images.sh             # Load images from tar files (run on offline target)
 
-# Service installation
-sudo ./install-service.sh      # Linux
-./install-service.ps1          # Windows PowerShell
+# Fix Docker daemon issues (if needed)
+sudo ./fix-docker-tmp.sh      # Fix Docker temp space issues
 
-# Docker image management
-./export-images.sh            # Export images to tar files
-./load-images.sh             # Load images from tar files
+# Setup Docker configuration
+./setup-docker-config.sh      # Configure Docker daemon settings
 ```
 
 ### Configuration
 ```bash
-# Setup environment file (required for both versions)
+# IMPORTANT: Always work from the v5/ directory
+cd v5/
+
+# Setup environment file (required)
 cp seed.env.example seed.env
 # Edit seed.env with actual GigaChat credentials (GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET)
 
@@ -102,7 +103,7 @@ curl -X POST http://localhost:8080/config/reload
 # View current configuration (without secrets)
 curl http://localhost:8080/config
 
-# LLM diagnostics
+# LLM diagnostics and self-test
 curl http://localhost:8080/llm/selftest
 ```
 
@@ -136,9 +137,11 @@ curl http://localhost:8080/llm/selftest
 
 ## Zabbix Integration
 
-Two webhook scripts are available for Zabbix integration:
+Multiple webhook scripts are available for Zabbix integration:
 - `zabbix-webhook.py` - Basic webhook for standard Zabbix setups
 - `zabbix-webhook-5.4.py` - Enhanced webhook for Zabbix 5.4.9 with URL parameter support
+- `zabbix-script-adapted.py` - Adapted webhook script with enhanced error handling
+- `zabbix-to-seed.py` - General purpose Zabbix to SEED converter
 
 ### Zabbix 5.4.9 Webhook Usage
 ```bash
@@ -152,9 +155,12 @@ python3 zabbix-webhook-5.4.py "http://host:8080/zabbix" '<json_data>'
 SEED_URL="http://p-dba-seed-adv-msk01:8080/zabbix" \
 python3 zabbix-webhook-5.4.py \
 '{"event":{"value":"1"},"trigger":{"name":"Test","severity_text":"High"},"host":{"name":"db01"}}'
+
+# Using adapted script with enhanced features
+python3 zabbix-script-adapted.py '<json_data>'
 ```
 
-Both webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` endpoint.
+All webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` endpoint.
 
 ## Core Architecture Patterns
 
@@ -173,19 +179,23 @@ Both webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` e
 - Hot reload: `POST /config/reload` recreates all clients without restart
 - Environment loading: `start.sh` automatically sources `seed.env`
 
-### Version Differences
-- **v4**: Includes data fetchers (`fetchers/`) for MongoDB/Telegraf integration
-- **v5**: Simplified architecture, enhanced FF-style formatting with colored notifications
-- Both versions share identical core modules and API endpoints
+### Key Features
+- **Plugin System**: Alert processor supports dynamic plugin loading for extensible alert handling
+- **Message Tracking**: Comprehensive message tracking and deduplication via `message_tracker.py`
+- **Enhanced Notifications**: Dual notification system (`notify.py` + `notify_enhanced.py`) for different use cases
+- **FF-Style Formatting**: Final Fantasy themed branding with emoji-based severity indicators
+- **Compact Format**: Auto-truncated LLM recommendations (500 char limit) with full logging
 
 ## Important Notes
 
 - All configuration in `seed.yaml` with secrets in `seed.env`
 - **CRITICAL**: LLM requires ALL GigaChat credentials in `seed.env` (GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET, GIGACHAT_SCOPE, etc.)
 - Without complete GigaChat config, LLM will be disabled (`llm: false` in health check)
-- System ready for production deployment (both v4 and v5)
+- System ready for production deployment 
 - Hot configuration reload supported via API - recreates LLM and notification clients
-- Comprehensive logging with emoji markers for easy filtering
-- v5 features colored Mattermost notifications and compact LLM recommendations (500 char limit)
+- Comprehensive logging with emoji markers for easy filtering: 📁 📤 ✅ ❌ 🎉
+- Docker volumes mounted to `/data/{redis,rabbitmq}` for persistent storage
 - Alert deduplication and throttling handled automatically via Redis
 - Multiple input sources supported: Alertmanager, Zabbix, direct API calls
+- Enhanced format testing available via `test_new_format.py` and `enhanced_format_demo.py`
+- Smoke testing with `./smoke-test.sh` verifies LLM functionality and Mattermost connectivity
