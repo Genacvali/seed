@@ -80,7 +80,7 @@ class GigaChat:
         self._save_token(token, ttl=60*30)
         return token
 
-    def ask(self, prompt: str, max_tokens: int = 150) -> str:
+    def ask(self, prompt: str, max_tokens: int = 300) -> str:
         if not self.enabled:
             return ""
             
@@ -89,7 +89,7 @@ class GigaChat:
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": max_tokens,
-            "temperature": 0.2,
+            "temperature": 0.0,  # Lower temperature for deterministic responses
         }
         
         r = requests.post(

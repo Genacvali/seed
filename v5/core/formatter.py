@@ -40,12 +40,21 @@ class AlertMessageFormatter:
         "unknown": "❔"       # fancy question
     }
     
-    # Статусные иконки для начала сообщения
+    # Статусные иконки для начала сообщения (упрощенные)
     STATUS_ICONS = {
-        "firing": "🚨",
+        "firing": "◻️",      # white square for critical
         "resolved": "✅",
         "warning": "⚠️",
         "info": "ℹ️"
+    }
+    
+    # Severity boxes (простые цветные квадраты)
+    SEVERITY_BOXES = {
+        "critical": "🟥",   # red box
+        "high": "🟧",       # orange box
+        "warning": "🟨",    # yellow box
+        "info": "🟦",       # blue box
+        "unknown": "◻️"     # white box
     }
     
     # Цветовые коды для Mattermost attachments
@@ -84,9 +93,12 @@ class AlertMessageFormatter:
         if status == "resolved":
             return cls._format_resolved_message(alertname, instance)
         
-        # Получаем статус и severity иконки
+        # Получаем статус и severity иконки 
         status_icon = cls.STATUS_ICONS.get(status, "🚨")
-        severity_icon = cls.SEVERITY_ICONS.get(severity.lower(), "❔")
+        severity_box = cls.SEVERITY_BOXES.get(severity.lower(), "◻️")  # Use simple colored boxes
+        
+        # Truncate long alert names (max 80-100 chars with ellipsis)
+        truncated_alertname = alertname[:100] + "..." if len(alertname) > 100 else alertname
         
         # Время (текущее и длительность если есть)
         current_time = datetime.datetime.now()
@@ -125,13 +137,13 @@ class AlertMessageFormatter:
         import random
         id4 = random.randint(1000, 9999)
         
-        # Формируем сообщение в стиле вашего media type
-        header_line = f"{status_icon} **{hostname}**: {alertname}"
+        # Формируем сообщение в компактном стиле с минимальными эмодзи
+        header_line = f"{severity_box} **{hostname}**: {truncated_alertname}"
         if description:
             header_line += f" {description}"
             
-        # Основная строка метаданных  
-        meta_line = f"📍 Production // {severity_icon}{severity.upper()} // #T{alert_id} {id4}"
+        # Основная строка метаданных (упрощенная)
+        meta_line = f"📍 Production // {severity.upper()} // #T{alert_id} {id4}"
         
         # Техническая строка
         tech_line = f"🔌 {tech_tags}"
@@ -145,22 +157,20 @@ class AlertMessageFormatter:
         else:
             id_line = f"Z{alert_id} // {hostname}"
             
-        message = f"""{header_line}
-{meta_line}
-{tech_line}
-{time_line}
-
-{id_line}
-
-### 💎 Возможные проблемы:
-{compact_problems}
-
-### ⚔️ Рекомендации:
-```bash
-{compact_commands}
-```
-
-— 🌌 SEED ✨"""
+        # Построение сообщения с условными блоками
+        message_parts = [header_line, meta_line, tech_line, time_line, "", id_line]
+        
+        # Добавляем проблемы только если есть содержимое
+        if compact_problems and compact_problems != "Нет информации" and compact_problems.strip():
+            message_parts.extend(["", "💎 Возможные проблемы:", compact_problems])
+        
+        # Добавляем рекомендации только если есть команды (без "```bash")
+        if compact_commands and compact_commands != "Нет команд" and compact_commands.strip():
+            message_parts.extend(["", "🛠 Рекомендации:", compact_commands])
+            
+        message_parts.append("\n— 🌌 SEED ✨")
+        
+        message = "\n".join(message_parts)
         
         return message.strip()
     

@@ -140,6 +140,7 @@ curl http://localhost:8080/llm/selftest
 Multiple webhook scripts are available for Zabbix integration:
 - `zabbix-webhook.py` - Basic webhook for standard Zabbix setups
 - `zabbix-webhook-5.4.py` - Enhanced webhook for Zabbix 5.4.9 with URL parameter support
+- `zabbix-webhook-enriched.py` - **NEW**: Optimized webhook that proxies enriched JSON directly to /zabbix
 - `zabbix-script-adapted.py` - Adapted webhook script with enhanced error handling
 - `zabbix-to-seed.py` - General purpose Zabbix to SEED converter
 
@@ -158,9 +159,20 @@ python3 zabbix-webhook-5.4.py \
 
 # Using adapted script with enhanced features
 python3 zabbix-script-adapted.py '<json_data>'
+
+# Using enriched webhook (RECOMMENDED for best LLM context)
+SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-enriched.py '<enriched_json>'
+python3 zabbix-webhook-enriched.py "http://host:8080/zabbix" '<enriched_json>'
 ```
 
 All webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` endpoint.
+
+### Enriched Zabbix Template
+For optimal LLM analysis, use the enriched JSON template in `ZABBIX_JSON_TEMPLATE.md`. This provides:
+- Host IP addresses and groups for infrastructure context
+- Trigger tags and descriptions for precise diagnostics  
+- Item keys and last values for specific command recommendations
+- Event timing data for recovery tracking
 
 ## Core Architecture Patterns
 
@@ -180,11 +192,13 @@ All webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` en
 - Environment loading: `start.sh` automatically sources `seed.env`
 
 ### Key Features
-- **Plugin System**: Alert processor supports dynamic plugin loading for extensible alert handling
+- **Rule Engine**: Deterministic rule-based responses for common alert patterns (MongoDB, Zabbix agent, TCP, disk space, CPU, memory)
+- **LLM Integration**: GigaChat-powered intelligent analysis with strict formatting requirements and low temperature (0.0) for consistent responses
+- **Enhanced Zabbix Integration**: Enriched JSON template with host IP, groups, trigger tags, item keys for precise LLM context
+- **Post-Processing**: Automatic sanitization to remove code fences, "bash" keywords, and empty sections
+- **Micro-Cosmetic Formatting**: Simplified emoji usage (🟥🟧🟨🟦 severity boxes, 💎 problems, 🛠 recommendations)
 - **Message Tracking**: Comprehensive message tracking and deduplication via `message_tracker.py`
-- **Enhanced Notifications**: Dual notification system (`notify.py` + `notify_enhanced.py`) for different use cases
-- **FF-Style Formatting**: Final Fantasy themed branding with emoji-based severity indicators
-- **Compact Format**: Auto-truncated LLM recommendations (500 char limit) with full logging
+- **FF-Style Branding**: Final Fantasy themed bot identity with crystal ball icon
 
 ## Important Notes
 

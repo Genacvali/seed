@@ -20,7 +20,7 @@ import socket
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -312,8 +312,93 @@ class SeedAgent:
         
         return instance or "unknown"
     
+    def _rulebook_steps(self, labels: Dict[str, str], annotations: Dict[str, str]) -> Optional[List[str]]:
+        """Rule-engine for common alert patterns - deterministic and instant"""
+        name = (labels.get("alertname","") + " " + annotations.get("summary","")).lower()
+        item_key = annotations.get("item_key","").lower() if isinstance(annotations.get("item_key"), str) else ""
+        
+        rules = [
+            # MongoDB down / порт
+            (lambda: "mongo" in name and ("not running" in name or "нет процессов" in name or ":27017" in name or "недоступен" in name),
+             [
+                "systemctl status mongod",
+                "journalctl -u mongod --since '-15min'",
+                "ss -lntp | grep :27017 || netstat -lntp | grep :27017"
+             ]),
+            # Zabbix agent
+            (lambda: "zabbix" in name and ("agent" in name or "zabbix_agentd" in name),
+             [
+                "systemctl status zabbix-agent",
+                "journalctl -u zabbix-agent --since '-30min'",
+                "zabbix_agentd -t agent.ping"
+             ]),
+            # systemd service по шаблону  
+            (lambda: "service" in name or "systemctl" in name or "служба" in name,
+             [
+                f"systemctl status {labels.get('service', '<service>')}",
+                f"journalctl -u {labels.get('service', '<service>')} --since '-30min'"
+             ]),
+            # TCP доступность
+            (lambda: "tcp" in name or "порт" in name or "port" in name or "connection" in name,
+             [
+                "ss -tnlp | head",
+                f"nc -vz {labels.get('host', '<host>')} {labels.get('port', '<port>')}"
+             ]),
+            # Disk space
+            (lambda: "disk" in name or "space" in name or "место" in name or "диск" in name,
+             [
+                "df -h",
+                "du -sh /var/log/* | sort -hr | head -10",
+                f"find {annotations.get('mountpoint', '/')} -type f -size +100M | head -10"
+             ]),
+            # High CPU/Load
+            (lambda: "cpu" in name or "load" in name or "нагрузка" in name,
+             [
+                "top -bn1 | head -20",
+                "ps aux --sort=-%cpu | head -10",
+                "uptime"
+             ]),
+            # Memory issues
+            (lambda: "memory" in name or "ram" in name or "память" in name or "oom" in name,
+             [
+                "free -h",
+                "ps aux --sort=-%mem | head -10", 
+                "dmesg | grep -i 'killed process' | tail -5"
+             ]),
+        ]
+        
+        for cond, steps in rules:
+            try:
+                if cond():
+                    return steps
+            except Exception:
+                pass
+        return None
+
+    def _sanitize(self, text: str) -> str:
+        """Post-processing: remove garbage and empty blocks"""
+        lines = [l.rstrip() for l in text.splitlines()]
+
+        # Remove banned words/markers  
+        banned = {"```", "bash", "Bash", "Нет команд", "shell", "console"}
+        lines = [l for l in lines if l.strip() and l.strip() not in banned]
+
+        # Limit length: max 10 lines
+        lines = lines[:10]
+
+        # Remove empty section headers
+        drop_next_if_header = {"Возможные причины:", "Возможные проблемы:", "Рекомендации:"}
+        cleaned = []
+        for i, l in enumerate(lines):
+            if l.strip() in drop_next_if_header:
+                # Empty header without content - skip
+                if i == len(lines)-1 or not lines[i+1].strip().startswith(("•", "1.", "2.", "3.", "-")):
+                    continue
+            cleaned.append(l)
+        return "\n".join(cleaned)
+
     async def process_alert_with_llm(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Universal LLM-powered alert processing"""
+        """Universal LLM-powered alert processing with rule-engine"""
         try:
             labels = alert_data.get("labels", {})
             annotations = alert_data.get("annotations", {})
@@ -321,62 +406,73 @@ class SeedAgent:
             severity = labels.get("severity", "unknown")
             instance = labels.get("instance", "unknown")
             
-            # 🎨 Dynamic formatting based on alert type and severity
-            severity_emoji = {
-                "critical": "🔥", "high": "⚠️", "warning": "📊", 
-                "info": "ℹ️", "unknown": "❓"
-            }.get(severity.lower(), "📋")
-            
-            # 🕰️ Time analysis
-            import datetime
-            current_time = datetime.datetime.now()
-            time_context = ""
-            if current_time.hour < 6 or current_time.hour > 22:
-                time_context = " (ночное время - возможно требуется эскалация)"
-            elif current_time.weekday() >= 5:
-                time_context = " (выходной день)"
-            
-            # 🎯 Priority scoring
-            priority_score = self._calculate_priority(labels, annotations)
-            priority_text = {
-                3: "🚨 КРИТИЧЕСКИЙ", 2: "⚠️ ВЫСОКИЙ", 
-                1: "📊 СРЕДНИЙ", 0: "ℹ️ НИЗКИЙ"
-            }.get(priority_score, "📋 ОБЫЧНЫЙ")
-            
-            # 💡 Adaptive LLM prompt based on alert type
-            specialized_prompt = self._get_specialized_prompt(alertname, labels)
-            
             # 🔄 Check if this is a resolution
             status = alert_data.get("status", "firing")
             if status == "resolved":
                 return await self._handle_alert_resolution(alert_data)
             
-            # Format structured message for LLM
+            # 📋 Rule-engine: check for deterministic responses
+            pre_steps = self._rulebook_steps(labels, annotations)
+            pre_section = ""
+            if pre_steps:
+                pre_section = "Рекомендации:\n" + "\n".join(f"{i+1}. {cmd}" for i, cmd in enumerate(pre_steps))
+            
+            # 🎯 Priority scoring
+            priority_score = self._calculate_priority(labels, annotations)
+            
+            # ⚡ Compact, strict LLM prompt
             llm_input = f"""
-Система мониторинга: {alertname}
-Серьезность: {severity}
-Сервер/Инстанс: {instance}
-Время: {current_time.strftime('%Y-%m-%d %H:%M:%S')}{time_context}
-Приоритет: {priority_text}
+Ты SRE-инженер. Дай короткий, практичный ответ для онколла.
 
-Метки: {labels}
-Аннотации: {annotations}
+Контекст (используй только его, не выдумывай):
+- alertname: {alertname}
+- severity: {severity}
+- instance: {instance}
+- labels: {labels}
+- annotations: {annotations}
 
-Контекст:
-{specialized_prompt}
+Требования к ответу (строго):
+- До 6 строк. Без префиксов 'Bash', без ```.
+- Разделы ровно такие (если пусто — раздел НЕ выводить):
+  1) "Возможные проблемы:" — 2–3 лаконичных буллета.
+  2) "Рекомендации:" — нумерованный список 1–3 точных команд/действий.
+- Команды только применимые к контексту (item.key, trigger.name, tags). Никаких placeholder'ов.
+- Если информации недостаточно — вместо фантазий напиши одну строку: "Контекст недостаточен для точной диагностики."
 
-Требования к формату ответа (очень важно):
-- Не используй тройные бэктики ``` и не пиши слово "bash".
-- Команды выводи построчно, по одной на строку, без оформления.
-- Дай 2–3 возможные причины короткими буллетами.
-
-Проанализируй ситуацию и дай структурированные рекомендации по устранению проблемы.
+Верни только текст сообщения без лишних пояснений.
 """
             
             # Send to LLM
             llm_response = ""
             if hasattr(self, 'llm_client') and self.llm_client:
-                llm_response = await self.llm_client.get_completion(llm_input)
+                llm_response = await self.llm_client.get_completion(llm_input, max_tokens=300)
+                # Sanitize LLM response
+                llm_response = self._sanitize(llm_response)
+            
+            # Merge rule-engine and LLM responses
+            final_response = ""
+            if pre_steps:
+                final_response = pre_section
+                # If LLM also gave recommendations, add unique ones (max 3 total)
+                if llm_response and "Рекомендации:" in llm_response:
+                    llm_parts = llm_response.split("Рекомендации:")
+                    if len(llm_parts) > 1:
+                        llm_recommendations = llm_parts[1].strip().split('\n')[:3]  # Max 3 additional
+                        # Add problems section if exists
+                        if "Возможные проблемы:" in llm_response:
+                            problems_section = llm_response.split("Рекомендации:")[0].strip()
+                            if problems_section:
+                                final_response = problems_section + "\n\n" + final_response
+                else:
+                    # Add LLM problems section if no recommendations conflict
+                    if llm_response and "Возможные проблемы:" in llm_response:
+                        problems_only = llm_response.split("Рекомендации:")[0].strip()
+                        final_response = problems_only + "\n\n" + final_response
+            else:
+                final_response = llm_response or "Контекст недостаточен для точной диагностики."
+            
+            # Final sanitization
+            final_response = self._sanitize(final_response)
             
             # Format final message using new formatter
             formatted_message = AlertMessageFormatter.format_alert_message(
@@ -386,8 +482,8 @@ class SeedAgent:
                 priority=priority_score,
                 labels=labels,
                 annotations=annotations,
-                llm_response=llm_response,
-                time_context=time_context,
+                llm_response=final_response,
+                time_context="",  # Remove time context for cleaner output
                 status=status
             )
             
@@ -1051,6 +1147,22 @@ async def zabbix_webhook(payload: Dict[str, Any]):
         severity = SEVERITY_MAP.get((trg.get("severity_text") or "information").lower(), "info")
         instance = f"{h.get('name','unknown')}:{it.get('port','0')}"
 
+        # Enrich annotations with Zabbix context for better LLM analysis
+        annotations = {
+            "summary": trg.get("description") or trg.get("name") or "Zabbix Alert",
+            "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}",
+            # Add enriched Zabbix attributes for LLM context
+            "host_ip": h.get("ip", ""),
+            "host_groups": h.get("groups", ""),
+            "trigger_tags": trg.get("tags", ""),
+            "item_key": it.get("key", ""),
+            "item_name": it.get("name", ""),
+            "item_lastvalue": it.get("lastvalue", ""),
+            "event_id": e.get("id", ""),
+            "event_date": e.get("date", ""),
+            "event_time": e.get("time", ""),
+        }
+        
         alert = {
             "status": status,
             "labels": {
@@ -1063,10 +1175,7 @@ async def zabbix_webhook(payload: Dict[str, Any]):
                 "event_id": e.get("id", ""),
                 "host_ip": h.get("ip", "")
             },
-            "annotations": {
-                "summary": trg.get("description") or trg.get("name") or "Zabbix Alert",
-                "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
-            }
+            "annotations": annotations
         }
 
     # 2) «Скриптовый» формат (Script media type): {sendto, subject, message}
