@@ -53,26 +53,14 @@ def send_to_seed_agent(seed_url, zabbix_data):
         
         severity = extract_severity(subject, message)
         
-        # Создаем alert в формате SEED Agent
+        # Создаем прямой JSON для нового универсального парсера
         alert_payload = {
-            "alerts": [{
-                "labels": {
-                    "alertname": f"Zabbix_{trigger.replace(' ', '_')}",
-                    "instance": host,
-                    "severity": severity,
-                    "source": "zabbix",
-                    "trigger": trigger
-                },
-                "annotations": {
-                    "summary": subject,
-                    "description": message,
-                    "timestamp": datetime.now().isoformat(),
-                    "host": host
-                },
-                "status": "firing",
-                "startsAt": datetime.now().isoformat(),
-                "generatorURL": f"http://zabbix-server/zabbix"
-            }]
+            "subject": subject,
+            "message": message,
+            "host": host,
+            "trigger": trigger,
+            "severity": severity,
+            "timestamp": datetime.now().isoformat()
         }
         
         response = requests.post(
