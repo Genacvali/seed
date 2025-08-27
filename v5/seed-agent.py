@@ -738,32 +738,65 @@ SEVERITY_MAP = {
 def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     Поддержка Script media type (subject/message).
-    Пример текста:
-      "⭕️ p-homesecurity-mng-adv-msk01: MongoDB Процессов нет ЭТО ТЕСТ"
-      "📍 Cloud // ‼️🤒HIGH // #T9732130 7260"
-      "📆 13:36:57"
-    Возвращает alert-объект в формате, который понимает process_alert().
+    Сначала пытается распарсить JSON из message, потом текстовый парсинг
     """
     subject = (payload.get("subject") or payload.get("Subject") or "").strip()
     message = (payload.get("message") or payload.get("Message") or "").strip()
 
-    # 1) Хост: берём из первой строки "host: ..." до двоеточия
-    #    если нет — пытаемся найти слово с дефисами/точками
-    first_line = subject.splitlines()[0] if subject else (message.splitlines()[0] if message else "")
-    # убираем явные эмодзи
-    first_line_clean = re.sub(r"[\u2600-\u26FF\u2700-\u27BF\U0001F300-\U0001FAFF]", "", first_line).strip()
+    # Попытка 1: Если message содержит JSON - парсим как structured data
+    if message.startswith('{') and message.endswith('}'):
+        try:
+            import json
+            json_data = json.loads(message)
+            
+            # Извлекаем данные из JSON структуры
+            e = json_data.get("event", {}) or {}
+            trg = json_data.get("trigger", {}) or {}
+            h = json_data.get("host", {}) or {}
+            it = json_data.get("item", {}) or {}
+            
+            status = "firing" if str(e.get("value", "1")) == "1" else "resolved"
+            severity = SEVERITY_MAP.get((trg.get("severity_text") or "information").lower(), "info")
+            host = h.get("name", "unknown")
+            port = it.get("port", "0")
+            instance = f"{host}:{port}"
+            
+            return {
+                "status": status,
+                "labels": {
+                    "alertname": trg.get("name", "ZabbixAlert"),
+                    "instance": instance,
+                    "severity": severity,
+                    "job": "zabbix",
+                    "host": host,
+                },
+                "annotations": {
+                    "summary": trg.get("description") or trg.get("name") or subject or "Zabbix Alert",
+                    "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
+                }
+            }
+        except:
+            # Если JSON парсинг не удался - продолжаем с текстовым парсингом
+            pass
+
+    # Попытка 2: Текстовый парсинг (оригинальная логика)
+    # Ищем хост в тексте, но не используем "Problem:" как хост
     host = "unknown"
-    if ":" in first_line_clean:
-        host = first_line_clean.split(":", 1)[0].strip()
-    else:
-        m = re.search(r"[A-Za-z0-9][\w\.\-]+", first_line_clean)
-        if m:
-            host = m.group(0)
+    alertname = subject or "ZabbixAlert"
+    
+    # Ищем паттерн хоста в subject (что-то с дефисами и точками, но не "Problem")
+    if subject:
+        # Убираем "Problem:" в начале
+        clean_subject = re.sub(r"^Problem:\s*", "", subject)
+        # Ищем хост-паттерн
+        host_match = re.search(r"([a-z0-9][\w\-\.]{3,})", clean_subject, re.IGNORECASE)
+        if host_match:
+            potential_host = host_match.group(1)
+            # Убеждаемся что это не часть описания проблемы
+            if not any(word in potential_host.lower() for word in ['процессов', 'mongodb', 'нет', 'тест']):
+                host = potential_host
 
-    # 2) Имя алерта: берём subject без ведущих эмодзи
-    alertname = re.sub(r"^[\s\U0001F300-\U0001FAFF\u2600-\u26FF\u2700-\u27BF]+", "", subject).strip() or "ZabbixAlert"
-
-    # 3) Серьёзность: ищем на второй строке/в тексте токены HIGH/CRITICAL/AVERAGE/WARNING/INFO
+    # Серьёзность из текста
     whole_text = f"{subject}\n{message}".upper()
     if "DISASTER" in whole_text or "CRITICAL" in whole_text:
         severity = "critical"
@@ -774,20 +807,16 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     else:
         severity = "info"
 
-    # 4) short summary / description
-    summary = subject or "Zabbix Alert"
-    description = message or subject or "Zabbix Alert"
-
-    # 5) instance (если в тексте встречается порт вида :27017 — добавим, иначе :0)
+    # Порт из текста (если есть)
     port = "0"
-    pm = re.search(r":(\d{2,5})\b", first_line_clean)
-    if pm:
-        port = pm.group(1)
+    port_match = re.search(r":(\d{2,5})\b", f"{subject} {message}")
+    if port_match:
+        port = port_match.group(1)
+    
     instance = f"{host}:{port}"
 
-    # Сконструируем alert-объект в формате process_alert()
-    alert = {
-        "status": "firing",  # у Script-теста почти всегда problem; recovery делаем отдельной нотой, если нужно
+    return {
+        "status": "firing",
         "labels": {
             "alertname": alertname,
             "instance": instance,
@@ -796,11 +825,10 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
             "host": host
         },
         "annotations": {
-            "summary": summary,
-            "description": description
+            "summary": subject or "Zabbix Alert",
+            "description": message or subject or "Zabbix Alert"
         }
     }
-    return alert
 
 @app.post("/zabbix")
 async def zabbix_webhook(payload: Dict[str, Any]):
