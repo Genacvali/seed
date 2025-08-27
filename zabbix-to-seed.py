@@ -15,12 +15,27 @@ def main():
     seed_url = sys.argv[1]
     raw_json = sys.argv[3] if len(sys.argv) > 3 else ""
 
-    # На всякий: валидируем, что это JSON
+    # Проверяем: это чистый JSON или текст с #SEED-JSON# тегами
     try:
+        # Сначала пытаемся как чистый JSON
         payload = json.loads(raw_json)
-    except Exception as e:
-        print("Invalid JSON in {ALERT.MESSAGE}:", e, file=sys.stderr)
-        sys.exit(1)
+    except:
+        # Если не JSON, ищем теги #SEED-JSON#
+        import re
+        json_match = re.search(r'#SEED-JSON#\s*(\{.*?\})\s*#/SEED-JSON#', raw_json, re.DOTALL)
+        if json_match:
+            try:
+                # Извлекаем JSON из тегов
+                payload = json.loads(json_match.group(1))
+            except Exception as e:
+                print("Invalid JSON inside #SEED-JSON# tags:", e, file=sys.stderr)
+                sys.exit(1)
+        else:
+            # Если нет тегов, отправляем как text payload
+            payload = {
+                "subject": sys.argv[2] if len(sys.argv) > 2 else "",
+                "message": raw_json
+            }
 
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(seed_url, data=data, headers={"Content-Type": "application/json"})
