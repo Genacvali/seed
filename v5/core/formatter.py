@@ -31,12 +31,12 @@ def _pick_commands(lines, limit=5):
 class AlertMessageFormatter:
     """Форматтер сообщений алертов для красивого Markdown"""
     
-    # Иконки статусов в Final Fantasy стиле (компактные)
+    # Иконки статусов в Final Fantasy стиле (оригинальные)
     SEVERITY_ICONS = {
         "critical": "💎🔥",   # crystal + danger
-        "high": "⚔️🤒",      # crossed blades + sick
-        "warning": "🛡️⚠️",    # shield + warning
-        "info": "✨ℹ️",       # sparkle + info
+        "high": "⚔️",        # crossed blades
+        "warning": "🛡️",     # shield
+        "info": "✨",         # sparkle
         "unknown": "❔"       # fancy question
     }
     
@@ -93,12 +93,16 @@ class AlertMessageFormatter:
         time_str = current_time.strftime('%H:%M:%S')
         date_str = current_time.strftime('%Y.%m.%d %H:%M:%S')
         
-        # Описание
+        # Описание (только если есть и не дублирует alertname)
         description = (
             annotations.get('summary') or 
             annotations.get('description') or 
-            'Нет описания'
+            ''
         )
+        
+        # Убираем дублирование с alertname
+        if description and description.lower() in alertname.lower():
+            description = ''
         
         # Генерируем уникальный ID алерта (из fingerprint или случайно)
         alert_id = cls._generate_alert_id(labels)
@@ -106,17 +110,28 @@ class AlertMessageFormatter:
         # Собираем технические теги
         tech_tags = cls._build_tech_tags(labels, instance)
         
-        # Парсим LLM-ответ
+        # Парсим LLM-ответ на проблемы и команды раздельно
         problems, commands = cls._extract_brief_info_from_llm(llm_response)
-        compact_recommendations = cls._format_compact_recommendations(problems + "\n" + commands, max_length=400)
+        compact_problems = cls._format_compact_recommendations(problems)
+        compact_commands = cls._format_compact_recommendations(commands, max_length=300)
         
         # Компактный формат в стиле вашего примера
-        message = f"""{status_icon} {instance}: {alertname} {description}
+        header_line = f"{status_icon} {instance}: {alertname}"
+        if description:
+            header_line += f" {description}"
+            
+        message = f"""{header_line}
 📍 Production // {severity_icon}{severity.upper()} // #{alert_id}
 🔌 {tech_tags}
 📆 {time_str} - {date_str}{time_context}
 
-{compact_recommendations}
+### 🔍 Возможные проблемы:
+{compact_problems}
+
+### 🛠 Рекомендации:
+```bash
+{compact_commands}
+```
 
 — 🌌 SEED ✨"""
         
@@ -128,9 +143,10 @@ class AlertMessageFormatter:
         current_time = datetime.datetime.now()
         time_str = current_time.strftime('%H:%M:%S')
         date_str = current_time.strftime('%Y.%m.%d %H:%M:%S')
+        alert_id = cls._generate_alert_id({"alertname": alertname, "instance": instance})
         
         return f"""✅ {instance}: {alertname} РЕШЕН
-📍 Production // ✅RESOLVED
+📍 Production // ✅RESOLVED // #{alert_id}
 📆 {time_str} - {date_str}
 
 🎉 Проблема устранена
