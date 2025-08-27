@@ -727,12 +727,27 @@ async def test_alerts():
 
 
 SEVERITY_MAP = {
+    # Zabbix standard severities
     "disaster": "critical",
-    "high": "high",
+    "high": "high", 
     "average": "warning",
     "warning": "warning",
     "information": "info",
     "not classified": "info",
+    
+    # Additional mappings for different Zabbix versions/configs
+    "critical": "critical",
+    "major": "high",
+    "minor": "warning",
+    "info": "info",
+    "low": "info",
+    
+    # Russian translations if they come from Zabbix
+    "критическая": "critical",
+    "высокая": "high",
+    "средняя": "warning",
+    "низкая": "info",
+    "информационная": "info",
 }
 
 def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -776,6 +791,7 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
             
             # Маппинг severity
             severity = SEVERITY_MAP.get(severity_text, "info")
+            logger.info(f"[ZABBIX] Severity mapping: '{severity_text}' -> '{severity}'")
             
             # Хост и порт
             host = h.get("name") or h.get("host", "unknown")

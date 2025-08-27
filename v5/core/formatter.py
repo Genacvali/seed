@@ -125,10 +125,10 @@ class AlertMessageFormatter:
 🔌 {tech_tags}
 📆 {time_str} - {date_str}{time_context}
 
-### 🔍 Возможные проблемы:
+### 💎 Возможные проблемы:
 {compact_problems}
 
-### 🛠 Рекомендации:
+### ⚔️ Рекомендации:
 ```bash
 {compact_commands}
 ```
