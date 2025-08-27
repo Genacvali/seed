@@ -433,6 +433,8 @@ async def zabbix_webhook(payload: Dict[str, Any]):
     """
     if not seed_agent:
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+    
+    logger.info(f"[/zabbix] got payload: {payload}")
 
     try:
         e   = payload.get("event", {})      # {value, date, time, r_date, r_time}
@@ -475,7 +477,8 @@ async def zabbix_webhook(payload: Dict[str, Any]):
             "endsAt": ends_at,
         }
 
-        result = await seed_agent.process_alert({"alerts": [alert]})
+        # Внутренний процессор ждёт один alert-объект, без обёртки {"alerts":[...]}
+        result = await seed_agent.process_alert(alert)
         return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
 
     except Exception as ex:

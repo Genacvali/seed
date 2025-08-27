@@ -109,6 +109,7 @@ curl http://localhost:8080/llm/selftest
 ## Key API Endpoints
 
 - `POST /alert` - Receive alerts from Alertmanager
+- `POST /zabbix` - Receive alerts from Zabbix (both v4 and v5)
 - `GET /health` - System health status  
 - `GET /dashboard` - Live metrics and status
 - `GET /config` - Current configuration view
@@ -133,6 +134,50 @@ curl http://localhost:8080/llm/selftest
 - **Throughput**: >1000 alerts/second
 - **Dependencies**: Docker for Redis/RabbitMQ, Python 3.8+
 
+## Zabbix Integration
+
+Two webhook scripts are available for Zabbix integration:
+- `zabbix-webhook.py` - Basic webhook for standard Zabbix setups
+- `zabbix-webhook-5.4.py` - Enhanced webhook for Zabbix 5.4.9 with URL parameter support
+
+### Zabbix 5.4.9 Webhook Usage
+```bash
+# Via environment variable
+SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-5.4.py '<json_data>'
+
+# Via URL argument
+python3 zabbix-webhook-5.4.py "http://host:8080/zabbix" '<json_data>'
+
+# Test with manual alert
+SEED_URL="http://p-dba-seed-adv-msk01:8080/zabbix" \
+python3 zabbix-webhook-5.4.py \
+'{"event":{"value":"1"},"trigger":{"name":"Test","severity_text":"High"},"host":{"name":"db01"}}'
+```
+
+Both webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` endpoint.
+
+## Core Architecture Patterns
+
+### Alert Processing Flow
+1. **Input**: Alerts received via `/alert` (Alertmanager) or `/zabbix` (Zabbix)
+2. **Processing**: `alert_processor.py` handles lifecycle, throttling, and enrichment
+3. **LLM Analysis**: `llm.py` performs intelligent analysis using GigaChat
+4. **Formatting**: `formatter.py` creates platform-specific messages (v5 has FF-style emojis)
+5. **Delivery**: `notify.py` sends to configured channels (Mattermost, Slack, Email)
+6. **Queuing**: `queue.py` manages RabbitMQ for reliable delivery
+7. **Throttling**: `redis_throttle.py` prevents duplicate alerts
+
+### Configuration System
+- Main config: `seed.yaml` (application settings)
+- Secrets: `seed.env` (credentials and sensitive data) 
+- Hot reload: `POST /config/reload` recreates all clients without restart
+- Environment loading: `start.sh` automatically sources `seed.env`
+
+### Version Differences
+- **v4**: Includes data fetchers (`fetchers/`) for MongoDB/Telegraf integration
+- **v5**: Simplified architecture, enhanced FF-style formatting with colored notifications
+- Both versions share identical core modules and API endpoints
+
 ## Important Notes
 
 - All configuration in `seed.yaml` with secrets in `seed.env`
@@ -141,4 +186,6 @@ curl http://localhost:8080/llm/selftest
 - System ready for production deployment (both v4 and v5)
 - Hot configuration reload supported via API - recreates LLM and notification clients
 - Comprehensive logging with emoji markers for easy filtering
-- v5 features colored Mattermost notifications and compact LLM recommendations
+- v5 features colored Mattermost notifications and compact LLM recommendations (500 char limit)
+- Alert deduplication and throttling handled automatically via Redis
+- Multiple input sources supported: Alertmanager, Zabbix, direct API calls

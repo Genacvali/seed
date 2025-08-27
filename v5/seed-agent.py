@@ -738,6 +738,8 @@ SEVERITY_MAP = {
 async def zabbix_webhook(payload: Dict[str, Any]):
     if not seed_agent:
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
+    
+    logger.info(f"[/zabbix] got payload: {payload}")
 
     e   = payload.get("event", {})
     trg = payload.get("trigger", {})
@@ -765,7 +767,8 @@ async def zabbix_webhook(payload: Dict[str, Any]):
         "endsAt": (f"{e['r_date']}T{e['r_time']}Z" if status == "resolved" and e.get("r_date") and e.get("r_time") else None),
     }
 
-    result = await seed_agent.process_alert({"alerts": [alert]})
+    # Внутренний процессор ждёт один alert-объект, без обёртки {"alerts":[...]}
+    result = await seed_agent.process_alert(alert)
     return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
 
 
