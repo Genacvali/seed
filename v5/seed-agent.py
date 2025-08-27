@@ -163,9 +163,94 @@ class SeedAgent:
             logger.error(f"Configuration validation failed: {e}")
             raise
     
+    def _convert_custom_payload_to_alertmanager(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert custom payload (subject/message format) to Alertmanager format"""
+        try:
+            subject = payload.get("subject", "")
+            message = payload.get("message", "")
+            
+            # Parse severity from subject or message
+            severity = self._parse_severity_from_text(subject + " " + message)
+            
+            # Try to extract alertname from subject
+            alertname = subject.replace("SEED Alert: ", "").strip()
+            if not alertname:
+                alertname = "Custom Alert"
+            
+            # Try to extract instance/hostname from message or subject
+            instance = self._parse_instance_from_text(message)
+            
+            logger.info(f"[CUSTOM PAYLOAD] Converting: subject='{subject}' -> severity='{severity}', alertname='{alertname}', instance='{instance}'")
+            
+            # Convert to Alertmanager format
+            alertmanager_format = {
+                "labels": {
+                    "alertname": alertname,
+                    "severity": severity,
+                    "instance": instance,
+                    "job": "custom-script",
+                    "source": "custom"
+                },
+                "annotations": {
+                    "summary": subject,
+                    "description": message
+                },
+                "status": "firing"
+            }
+            
+            return alertmanager_format
+            
+        except Exception as e:
+            logger.error(f"Custom payload conversion failed: {e}")
+            # Return original if conversion fails
+            return payload
+    
+    def _parse_severity_from_text(self, text: str) -> str:
+        """Parse severity from text content"""
+        text_upper = text.upper()
+        
+        # Check for severity keywords
+        if any(word in text_upper for word in ["CRITICAL", "DISASTER", "💎🔥", "🔥"]):
+            return "critical"
+        elif any(word in text_upper for word in ["HIGH", "MAJOR", "⚔️", "🤒"]):
+            return "high"  
+        elif any(word in text_upper for word in ["WARNING", "WARN", "AVERAGE", "🛡️", "⚠️"]):
+            return "warning"
+        elif any(word in text_upper for word in ["INFO", "INFORMATION", "✨", "ℹ️"]):
+            return "info"
+        else:
+            # Default based on alert keywords
+            if any(word in text_upper for word in ["ERROR", "FAIL", "DOWN", "UNAVAILABLE", "ПРОЦЕССОВ НЕТ"]):
+                return "high"  # Treat errors as high severity
+            return "warning"  # Safe default
+    
+    def _parse_instance_from_text(self, text: str) -> str:
+        """Extract instance/hostname from text"""
+        import re
+        
+        # Look for hostname patterns in text
+        hostname_patterns = [
+            r'([a-zA-Z0-9\-]+(?:\.[a-zA-Z0-9\-]+)*):(\d+)',  # hostname:port
+            r'([a-zA-Z0-9\-]{3,}(?:\-[a-zA-Z0-9\-]+)*)',     # hostname-like strings
+        ]
+        
+        for pattern in hostname_patterns:
+            match = re.search(pattern, text)
+            if match:
+                if ':' in match.group(0):
+                    return match.group(0)  # hostname:port
+                else:
+                    return f"{match.group(0)}:0"  # hostname:0
+        
+        return "unknown:0"
+    
     async def process_alert(self, alert_data: Dict[str, Any]) -> Dict[str, Any]:
         """Process incoming alert"""
         try:
+            # Detect and convert custom payload format (subject/message) to Alertmanager format
+            if "subject" in alert_data and "message" in alert_data:
+                alert_data = self._convert_custom_payload_to_alertmanager(alert_data)
+            
             # Extract from labels (Alertmanager format)
             labels = alert_data.get("labels", {})
             annotations = alert_data.get("annotations", {})
