@@ -749,8 +749,79 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     logger.info(f"[_parse_text_alert] message starts with {{: {message.startswith('{')}")
     logger.info(f"[_parse_text_alert] message ends with }}: {message.endswith('}')}")
 
-    # Попытка 1: Если message содержит JSON - парсим как structured data
-    if message.startswith('{') and message.endswith('}'):
+    # Попытка 1: Если message содержит JSON между #SEED-JSON# тегами
+    json_match = re.search(r'#SEED-JSON#\s*(\{.*?\})\s*#/SEED-JSON#', message, re.DOTALL)
+    if json_match:
+        try:
+            import json
+            json_data = json.loads(json_match.group(1))
+            logger.info(f"[_parse_text_alert] Found SEED-JSON: {json_data}")
+            
+            # Извлекаем данные из корпоративной JSON структуры
+            e = json_data.get("event", {}) or {}
+            trg = json_data.get("trigger", {}) or {}
+            h = json_data.get("host", {}) or {}
+            items = json_data.get("items", [])
+            
+            logger.info(f"[_parse_text_alert] host from SEED-JSON: {h}")
+            logger.info(f"[_parse_text_alert] trigger from SEED-JSON: {trg}")
+            
+            # Определяем статус
+            event_value = str(e.get("value", "1"))
+            severity_text = e.get("severity", "information").lower()
+            if severity_text == "resolved":
+                status = "resolved"
+            else:
+                status = "firing" if event_value == "1" else "resolved"
+            
+            # Маппинг severity
+            severity = SEVERITY_MAP.get(severity_text, "info")
+            
+            # Хост и порт
+            host = h.get("name") or h.get("host", "unknown")
+            
+            # Пытаемся извлечь порт из items или trigger name
+            port = "0"
+            for item in items:
+                if item and item.get("name"):
+                    port_match = re.search(r':(\d{2,5})\b', item["name"])
+                    if port_match:
+                        port = port_match.group(1)
+                        break
+            
+            if port == "0":  # Если не нашли в items, ищем в trigger name
+                port_match = re.search(r':(\d{2,5})\b', trg.get("name", ""))
+                if port_match:
+                    port = port_match.group(1)
+            
+            instance = f"{host}:{port}"
+            
+            logger.info(f"[_parse_text_alert] Returning SEED-JSON result: host={host}, port={port}, status={status}")
+            
+            return {
+                "status": status,
+                "labels": {
+                    "alertname": trg.get("name", "ZabbixAlert"),
+                    "instance": instance,
+                    "severity": severity,
+                    "job": "zabbix",
+                    "host": host,
+                    "trigger_id": trg.get("id", ""),
+                    "event_id": e.get("id", "")
+                },
+                "annotations": {
+                    "summary": trg.get("description") or trg.get("name") or subject or "Zabbix Alert",
+                    "description": f"Event ID: {e.get('id', 'n/a')}, Host IP: {h.get('ip', 'n/a')}",
+                    "trigger_url": trg.get("url", ""),
+                    "event_age": e.get("age", "")
+                }
+            }
+        except Exception as ex:
+            logger.info(f"[_parse_text_alert] SEED-JSON parsing failed: {ex}")
+            pass
+    
+    # Попытка 2: Обычный JSON в начале/конце message
+    elif message.startswith('{') and message.endswith('}'):
         try:
             import json
             json_data = json.loads(message)
