@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Zabbix 5.4.9 Webhook для SEED Agent
 Получает JSON данные из Zabbix и отправляет в SEED Agent
@@ -40,7 +41,7 @@ def extract_severity(subject, message):
     else:
         return 'warning'  # default
 
-def send_to_seed_agent(zabbix_data):
+def send_to_seed_agent(seed_url, zabbix_data):
     """Отправляет alert в SEED Agent"""
     try:
         subject = zabbix_data.get('subject', 'Zabbix Alert')
@@ -75,7 +76,7 @@ def send_to_seed_agent(zabbix_data):
         }
         
         response = requests.post(
-            'http://localhost:8080/alert',
+            seed_url,
             json=alert_payload,
             headers={'Content-Type': 'application/json'},
             timeout=30
@@ -92,16 +93,42 @@ def send_to_seed_agent(zabbix_data):
 def main():
     """Main webhook handler для Zabbix 5.4"""
     try:
-        if len(sys.argv) >= 2:
-            raw_data = sys.argv[1]
-        else:
-            raw_data = sys.stdin.read().strip()
+        # 1) URL из argv[1] или из переменной окружения
+        seed_url = None
+        raw_data = None
         
-        if not raw_data:
+        if len(sys.argv) > 1 and sys.argv[1].startswith("http"):
+            # Первый аргумент - URL
+            seed_url = sys.argv[1]
+            if len(sys.argv) > 2:
+                raw_data = sys.argv[2]
+        elif len(sys.argv) > 1:
+            # Первый аргумент - данные
+            raw_data = sys.argv[1]
+        
+        # Если URL не найден в аргументах, берем из ENV
+        if not seed_url:
+            seed_url = os.getenv("SEED_URL")
+        
+        if not seed_url:
             return 1
         
+        # Если данных нет, читаем из stdin
+        if not raw_data:
+            if not sys.stdin.isatty():
+                raw_data = sys.stdin.read().strip()
+        
+        if not raw_data:
+            # Минимальный дефолт для теста
+            raw_data = json.dumps({
+                "event": {"value": "1"},
+                "trigger": {"name": "Zabbix CLI Test", "severity_text": "Information"},
+                "host": {"name": "test"},
+                "item": {"name": "test", "lastvalue": "42", "port": "0"}
+            })
+        
         zabbix_data = parse_zabbix_data(raw_data)
-        return send_to_seed_agent(zabbix_data)
+        return send_to_seed_agent(seed_url, zabbix_data)
         
     except:
         return 1
