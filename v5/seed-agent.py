@@ -743,11 +743,18 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     subject = (payload.get("subject") or payload.get("Subject") or "").strip()
     message = (payload.get("message") or payload.get("Message") or "").strip()
 
+    # Отладочное логирование
+    logger.info(f"[_parse_text_alert] subject: '{subject}'")
+    logger.info(f"[_parse_text_alert] message: '{message}'")
+    logger.info(f"[_parse_text_alert] message starts with {{: {message.startswith('{')}")
+    logger.info(f"[_parse_text_alert] message ends with }}: {message.endswith('}')}")
+
     # Попытка 1: Если message содержит JSON - парсим как structured data
     if message.startswith('{') and message.endswith('}'):
         try:
             import json
             json_data = json.loads(message)
+            logger.info(f"[_parse_text_alert] JSON parsed successfully: {json_data}")
             
             # Извлекаем данные из JSON структуры
             e = json_data.get("event", {}) or {}
@@ -755,11 +762,16 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
             h = json_data.get("host", {}) or {}
             it = json_data.get("item", {}) or {}
             
+            logger.info(f"[_parse_text_alert] host from JSON: {h}")
+            logger.info(f"[_parse_text_alert] trigger from JSON: {trg}")
+            
             status = "firing" if str(e.get("value", "1")) == "1" else "resolved"
             severity = SEVERITY_MAP.get((trg.get("severity_text") or "information").lower(), "info")
             host = h.get("name", "unknown")
             port = it.get("port", "0")
             instance = f"{host}:{port}"
+            
+            logger.info(f"[_parse_text_alert] Returning JSON-based result: host={host}, port={port}")
             
             return {
                 "status": status,
@@ -775,11 +787,14 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
                     "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
                 }
             }
-        except:
+        except Exception as ex:
             # Если JSON парсинг не удался - продолжаем с текстовым парсингом
+            logger.info(f"[_parse_text_alert] JSON parsing failed: {ex}")
             pass
 
     # Попытка 2: Текстовый парсинг (оригинальная логика)
+    logger.info("[_parse_text_alert] Falling back to text parsing")
+    
     # Ищем хост в тексте, но не используем "Problem:" как хост
     host = "unknown"
     alertname = subject or "ZabbixAlert"
@@ -788,13 +803,19 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     if subject:
         # Убираем "Problem:" в начале
         clean_subject = re.sub(r"^Problem:\s*", "", subject)
+        logger.info(f"[_parse_text_alert] clean_subject after removing 'Problem:': '{clean_subject}'")
+        
         # Ищем хост-паттерн
         host_match = re.search(r"([a-z0-9][\w\-\.]{3,})", clean_subject, re.IGNORECASE)
         if host_match:
             potential_host = host_match.group(1)
+            logger.info(f"[_parse_text_alert] potential_host found: '{potential_host}'")
             # Убеждаемся что это не часть описания проблемы
             if not any(word in potential_host.lower() for word in ['процессов', 'mongodb', 'нет', 'тест']):
                 host = potential_host
+                logger.info(f"[_parse_text_alert] host accepted: '{host}'")
+            else:
+                logger.info(f"[_parse_text_alert] host rejected (contains problem words)")
 
     # Серьёзность из текста
     whole_text = f"{subject}\n{message}".upper()
@@ -812,8 +833,10 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
     port_match = re.search(r":(\d{2,5})\b", f"{subject} {message}")
     if port_match:
         port = port_match.group(1)
+        logger.info(f"[_parse_text_alert] port found: '{port}'")
     
     instance = f"{host}:{port}"
+    logger.info(f"[_parse_text_alert] Final text parsing result: host={host}, port={port}, instance={instance}")
 
     return {
         "status": "firing",
