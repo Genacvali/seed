@@ -900,13 +900,13 @@ def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
         severity = "info"
 
     # Порт из текста (если есть)
-    port = "0"
+    port = None
     port_match = re.search(r":(\d{2,5})\b", f"{subject} {message}")
     if port_match:
         port = port_match.group(1)
         logger.info(f"[_parse_text_alert] port found: '{port}'")
     
-    instance = f"{host}:{port}"
+    instance = f"{host}:{port}" if port else host
     logger.info(f"[_parse_text_alert] Final text parsing result: host={host}, port={port}, instance={instance}")
 
     return {
