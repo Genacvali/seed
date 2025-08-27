@@ -14,6 +14,7 @@ Improvements in v4:
 
 import asyncio
 import logging
+import re
 import signal
 import socket
 import sys
@@ -424,41 +425,93 @@ SEVERITY_MAP = {
     "not classified": "info",
 }
 
+def _parse_text_alert(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Поддержка Script media type (subject/message).
+    Пример текста:
+      "⭕️ p-homesecurity-mng-adv-msk01: MongoDB Процессов нет ЭТО ТЕСТ"
+      "📍 Cloud // ‼️🤒HIGH // #T9732130 7260"
+      "📆 13:36:57"
+    Возвращает alert-объект в формате, который понимает process_alert().
+    """
+    subject = (payload.get("subject") or payload.get("Subject") or "").strip()
+    message = (payload.get("message") or payload.get("Message") or "").strip()
+
+    # 1) Хост: берём из первой строки "host: ..." до двоеточия
+    #    если нет — пытаемся найти слово с дефисами/точками
+    first_line = subject.splitlines()[0] if subject else (message.splitlines()[0] if message else "")
+    # убираем явные эмодзи
+    first_line_clean = re.sub(r"[\u2600-\u26FF\u2700-\u27BF\U0001F300-\U0001FAFF]", "", first_line).strip()
+    host = "unknown"
+    if ":" in first_line_clean:
+        host = first_line_clean.split(":", 1)[0].strip()
+    else:
+        m = re.search(r"[A-Za-z0-9][\w\.\-]+", first_line_clean)
+        if m:
+            host = m.group(0)
+
+    # 2) Имя алерта: берём subject без ведущих эмодзи
+    alertname = re.sub(r"^[\s\U0001F300-\U0001FAFF\u2600-\u26FF\u2700-\u27BF]+", "", subject).strip() or "ZabbixAlert"
+
+    # 3) Серьёзность: ищем на второй строке/в тексте токены HIGH/CRITICAL/AVERAGE/WARNING/INFO
+    whole_text = f"{subject}\n{message}".upper()
+    if "DISASTER" in whole_text or "CRITICAL" in whole_text:
+        severity = "critical"
+    elif "HIGH" in whole_text:
+        severity = "high"
+    elif "AVERAGE" in whole_text or "WARNING" in whole_text:
+        severity = "warning"
+    else:
+        severity = "info"
+
+    # 4) short summary / description
+    summary = subject or "Zabbix Alert"
+    description = message or subject or "Zabbix Alert"
+
+    # 5) instance (если в тексте встречается порт вида :27017 — добавим, иначе :0)
+    port = "0"
+    pm = re.search(r":(\d{2,5})\b", first_line_clean)
+    if pm:
+        port = pm.group(1)
+    instance = f"{host}:{port}"
+
+    # Сконструируем alert-объект в формате process_alert()
+    alert = {
+        "status": "firing",  # у Script-теста почти всегда problem; recovery делаем отдельной нотой, если нужно
+        "labels": {
+            "alertname": alertname,
+            "instance": instance,
+            "severity": severity,
+            "job": "zabbix",
+            "host": host
+        },
+        "annotations": {
+            "summary": summary,
+            "description": description
+        }
+    }
+    return alert
 
 @app.post("/zabbix")
 async def zabbix_webhook(payload: Dict[str, Any]):
-    """
-    Принимает нативные поля Zabbix (через Webhook Media Type) и конвертирует в формат Alertmanager.
-    Ожидаемые ключи (минимум): event, trigger, host, item — см. media type ниже.
-    """
     if not seed_agent:
         raise HTTPException(status_code=503, detail="SEED Agent not initialized")
-    
+
+    # Лог входящего — удобно для отладки
     logger.info(f"[/zabbix] got payload: {payload}")
 
-    try:
-        e   = payload.get("event", {})      # {value, date, time, r_date, r_time}
-        trg = payload.get("trigger", {})    # {name, description, severity_text}
-        h   = payload.get("host", {})       # {name}
-        it  = payload.get("item", {})       # {name, lastvalue, port}
+    alert = None
 
-        # status: 1 = Problem → firing, 0 = OK → resolved
+    # 1) «Правильный» JSON от Webhook media type: {event, trigger, host, item}
+    if isinstance(payload, dict) and all(k in payload for k in ("event", "trigger", "host")):
+        e   = payload.get("event", {}) or {}
+        trg = payload.get("trigger", {}) or {}
+        h   = payload.get("host", {}) or {}
+        it  = payload.get("item", {}) or {}
+
         status = "firing" if str(e.get("value", "1")) == "1" else "resolved"
-
-        severity_text = (trg.get("severity_text") or "information").lower()
-        severity = SEVERITY_MAP.get(severity_text, "info")
-
+        severity = SEVERITY_MAP.get((trg.get("severity_text") or "information").lower(), "info")
         instance = f"{h.get('name','unknown')}:{it.get('port','0')}"
-        summary = trg.get("description") or trg.get("name") or "Zabbix Alert"
-        description = f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
-
-        starts_at = None
-        if e.get("date") and e.get("time"):
-            starts_at = f"{e['date']}T{e['time']}Z"
-
-        ends_at = None
-        if status == "resolved" and e.get("r_date") and e.get("r_time"):
-            ends_at = f"{e['r_date']}T{e['r_time']}Z"
 
         alert = {
             "status": status,
@@ -470,20 +523,35 @@ async def zabbix_webhook(payload: Dict[str, Any]):
                 "host": h.get("name", "unknown"),
             },
             "annotations": {
-                "summary": summary,
-                "description": description,
-            },
-            "startsAt": starts_at,
-            "endsAt": ends_at,
+                "summary": trg.get("description") or trg.get("name") or "Zabbix Alert",
+                "description": f"Item: {it.get('name','n/a')}, Value: {it.get('lastvalue','n/a')}"
+            }
         }
 
-        # Внутренний процессор ждёт один alert-объект, без обёртки {"alerts":[...]}
-        result = await seed_agent.process_alert(alert)
-        return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
+    # 2) «Скриптовый» формат (Script media type): {sendto, subject, message}
+    elif any(k in payload for k in ("subject", "Subject", "message", "Message")):
+        alert = _parse_text_alert(payload)
 
-    except Exception as ex:
-        logger.exception("Zabbix webhook error")
-        raise HTTPException(status_code=400, detail=str(ex))
+    # 3) Ничего не распознали — пусть будет дефолт
+    else:
+        alert = {
+            "status": "firing",
+            "labels": {
+                "alertname": payload.get("alertname", "ZabbixAlert"),
+                "instance": payload.get("instance", "unknown:0"),
+                "severity": payload.get("severity", "info"),
+                "job": "zabbix",
+                "host": payload.get("host", "unknown")
+            },
+            "annotations": {
+                "summary": payload.get("summary", "Zabbix Alert"),
+                "description": payload.get("description", "No description")
+            }
+        }
+
+    # ⛔️ ВАЖНО: передаём ВНУТРЬ ровно ОДИН alert-объект (без обёртки {"alerts":[...]})
+    result = await seed_agent.process_alert(alert)
+    return JSONResponse(content=result, status_code=200 if result.get("success") else 422)
 
 
 @app.post("/alert")
