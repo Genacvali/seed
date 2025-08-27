@@ -33,6 +33,14 @@ def proxy_to_seed(json_data: str, seed_url: str = None) -> int:
         print(f"[INFO] Parsed JSON payload with {len(payload)} top-level keys")
     except json.JSONDecodeError as e:
         print(f"[ERROR] Invalid JSON: {e}")
+        print(f"[DEBUG] Problematic JSON (first 500 chars): {repr(json_data[:500])}")
+        print("\n[HINT] Common issues:")
+        print("  1. JSON might be truncated by Zabbix")
+        print("  2. Special characters not properly escaped")
+        print("  3. Single quotes instead of double quotes")
+        print("  4. Missing closing braces")
+        print("\n[SUGGESTION] Try with a simple test JSON first:")
+        print('{"event":{"value":"1"},"trigger":{"name":"Test"},"host":{"name":"test"}}')
         return 1
     
     # Ensure we have required fields
@@ -87,6 +95,8 @@ def main():
     if len(sys.argv) < 2:
         print("Usage: python3 zabbix-webhook-enriched.py [<seed_url>] '<json_data>'")
         print("   or: SEED_URL='http://host:8080/zabbix' python3 zabbix-webhook-enriched.py '<json_data>'")
+        print("\nExample with enriched template:")
+        print('python3 zabbix-webhook-enriched.py \'{"event":{"id":"123","value":"1"},"trigger":{"name":"Test Alert","severity_text":"High"},"host":{"name":"testhost","ip":"192.168.1.1"}}\'')
         return 1
     
     # Handle both URL as first arg and JSON as second, or just JSON as first
@@ -101,6 +111,17 @@ def main():
     
     print(f"[INFO] SEED URL: {seed_url or os.environ.get('SEED_URL', 'http://localhost:8080/zabbix')}")
     print(f"[INFO] JSON data length: {len(json_data)} characters")
+    print(f"[DEBUG] Raw JSON data: '{json_data[:200]}{'...' if len(json_data) > 200 else ''}'")
+    
+    # Additional validation
+    if len(json_data) < 10:
+        print(f"[ERROR] JSON data too short ({len(json_data)} chars). Expected enriched Zabbix JSON.")
+        print("Check that Zabbix is passing the complete message template.")
+        return 1
+    
+    if not json_data.strip():
+        print("[ERROR] Empty JSON data received")
+        return 1
     
     return proxy_to_seed(json_data, seed_url)
 
