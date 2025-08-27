@@ -31,13 +31,21 @@ def _pick_commands(lines, limit=5):
 class AlertMessageFormatter:
     """Форматтер сообщений алертов для красивого Markdown"""
     
-    # Иконки статусов в Final Fantasy стиле
+    # Иконки статусов в Final Fantasy стиле (компактные)
     SEVERITY_ICONS = {
         "critical": "💎🔥",   # crystal + danger
-        "high": "⚔️",        # crossed blades
-        "warning": "🛡️",     # shield
-        "info": "✨",         # sparkle
+        "high": "⚔️🤒",      # crossed blades + sick
+        "warning": "🛡️⚠️",    # shield + warning
+        "info": "✨ℹ️",       # sparkle + info
         "unknown": "❔"       # fancy question
+    }
+    
+    # Статусные иконки для начала сообщения
+    STATUS_ICONS = {
+        "firing": "🚨",
+        "resolved": "✅",
+        "warning": "⚠️",
+        "info": "ℹ️"
     }
     
     # Цветовые коды для Mattermost attachments
@@ -71,65 +79,63 @@ class AlertMessageFormatter:
         status: str = "firing"
     ) -> str:
         """
-        Форматирует сообщение в лаконичный красивый Markdown
+        Форматирует сообщение в компактном стиле с техническими тегами
         """
         if status == "resolved":
             return cls._format_resolved_message(alertname, instance)
         
-        # Получаем иконки 
-        severity_icon = cls.SEVERITY_ICONS.get(severity.lower(), "📋")
+        # Получаем статус и severity иконки
+        status_icon = cls.STATUS_ICONS.get(status, "🚨")
+        severity_icon = cls.SEVERITY_ICONS.get(severity.lower(), "❔")
         
-        # Время
+        # Время (текущее и длительность если есть)
         current_time = datetime.datetime.now()
-        time_str = current_time.strftime('%Y-%m-%d %H:%M')
+        time_str = current_time.strftime('%H:%M:%S')
+        date_str = current_time.strftime('%Y.%m.%d %H:%M:%S')
         
         # Описание
         description = (
             annotations.get('summary') or 
             annotations.get('description') or 
-            'Описание отсутствует'
+            'Нет описания'
         )
         
-        # Парсим LLM-ответ на проблемы и команды
+        # Генерируем уникальный ID алерта (из fingerprint или случайно)
+        alert_id = cls._generate_alert_id(labels)
+        
+        # Собираем технические теги
+        tech_tags = cls._build_tech_tags(labels, instance)
+        
+        # Парсим LLM-ответ
         problems, commands = cls._extract_brief_info_from_llm(llm_response)
+        compact_recommendations = cls._format_compact_recommendations(problems + "\n" + commands, max_length=400)
         
-        # Компактные рекомендации
-        compact_problems = cls._format_compact_recommendations(problems)
-        compact_commands = cls._format_compact_recommendations(commands, max_length=300)
+        # Компактный формат в стиле вашего примера
+        message = f"""{status_icon} {instance}: {alertname} {description}
+📍 Production // {severity_icon}{severity.upper()} // #{alert_id}
+🔌 {tech_tags}
+📆 {time_str} - {date_str}{time_context}
+
+{compact_recommendations}
+
+— 🌌 SEED ✨"""
         
-        # Собираем лаконичное сообщение
-        message = f"""{severity_icon} **{alertname} ({severity.upper()})**
-
-📍 **Сервер:** {instance}  
-⏰ **Время:** {time_str}{time_context}  
-📝 **Описание:** {description}
-
----
-
-### 🔍 Возможные проблемы:
-{compact_problems}
-
-### 🛠 Рекомендации:
-```bash
-{compact_commands}
-```
-
-— Powered by 🌌 SEED ✨"""
         return message.strip()
     
     @classmethod
     def _format_resolved_message(cls, alertname: str, instance: str) -> str:
-        """Форматирует сообщение о решении алерта"""
-        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M')
+        """Форматирует сообщение о решении алерта в компактном стиле"""
+        current_time = datetime.datetime.now()
+        time_str = current_time.strftime('%H:%M:%S')
+        date_str = current_time.strftime('%Y.%m.%d %H:%M:%S')
         
-        return f"""✅ **АЛЕРТ РЕШЕН: {alertname}**
+        return f"""✅ {instance}: {alertname} РЕШЕН
+📍 Production // ✅RESOLVED
+📆 {time_str} - {date_str}
 
-**Сервер:** {instance}  
-**Время решения:** {current_time}  
+🎉 Проблема устранена
 
-🎉 Проблема автоматически устранена или решена администратором.
-
-— SEED ✨"""
+— 🌌 SEED ✨"""
     
     @classmethod
     def _extract_brief_info_from_llm(cls, llm_response: str) -> tuple:
@@ -171,6 +177,75 @@ class AlertMessageFormatter:
 
         return problems_block, commands_block
     
+    @classmethod
+    def _generate_alert_id(cls, labels: Dict[str, str]) -> str:
+        """Генерирует компактный ID алерта"""
+        import hashlib
+        import random
+        
+        # Создаем ID на основе alertname + instance + случайность
+        base_str = f"{labels.get('alertname', 'unknown')}{labels.get('instance', 'unknown')}"
+        hash_part = hashlib.md5(base_str.encode()).hexdigest()[:4].upper()
+        random_part = random.randint(1000, 9999)
+        
+        return f"T{hash_part}{random_part}"
+    
+    @classmethod
+    def _build_tech_tags(cls, labels: Dict[str, str], instance: str) -> str:
+        """Собирает технические теги из меток"""
+        tags = []
+        
+        # Операционная система
+        if 'os' in labels:
+            tags.append(labels['os'])
+        elif any(x in instance.lower() for x in ['centos', 'rhel', 'redhat']):
+            tags.append('RedHat')
+        elif any(x in instance.lower() for x in ['ubuntu', 'debian']):
+            tags.append('Ubuntu')
+        
+        # Сервисы/технологии
+        service_map = {
+            'mongodb': 'DB/MongoDB',
+            'mysql': 'DB/MySQL', 
+            'postgresql': 'DB/PostgreSQL',
+            'redis': 'DB/Redis',
+            'nginx': 'Web/Nginx',
+            'apache': 'Web/Apache',
+            'docker': 'Container/Docker',
+            'kubernetes': 'K8s',
+            'rabbitmq': 'MQ/RabbitMQ'
+        }
+        
+        for key, tech in service_map.items():
+            if key in str(labels).lower() or key in instance.lower():
+                tags.append(tech)
+        
+        # Среда
+        env = labels.get('env', labels.get('environment', ''))
+        if env:
+            if env.lower() in ['prod', 'production']:
+                tags.append('production')
+            else:
+                tags.append(env)
+        else:
+            tags.append('production')  # по умолчанию
+        
+        # Дополнительные теги из job/service
+        if 'job' in labels and labels['job'] not in ['node-exporter', 'prometheus']:
+            tags.append(labels['job'])
+        
+        if 'service' in labels:
+            tags.append(labels['service'])
+            
+        # Локация (попытка извлечь из instance)
+        location_patterns = ['msk', 'spb', 'ekb', 'nsk', 'kzn', 'adv']
+        for pattern in location_patterns:
+            if pattern in instance.lower():
+                tags.append(pattern)
+                break
+                
+        return ', '.join(tags[:8])  # Ограничиваем количество тегов
+    
     
     @classmethod
     def _format_compact_recommendations(cls, text: str, max_length: int = 500) -> str:
@@ -188,7 +263,7 @@ class AlertMessageFormatter:
         if last_space > max_length * 0.8:  # Если пробел не слишком близко к началу
             truncated = truncated[:last_space]
         
-        return truncated + "\n\n... 🔎 *Полный текст в seed-agent.log*"
+        return truncated + "\n\n🔎 *Полный анализ в логах*"
     
     @classmethod
     def get_severity_color(cls, severity: str) -> str:

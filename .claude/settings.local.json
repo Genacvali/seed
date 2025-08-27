@@ -25,7 +25,8 @@
       "Read(/D:\\WorkNotes\\budet/**)",
       "Read(/D:\\WorkNotes\\budet/**)",
       "Read(/D:\\WorkNotes\\budet/**)",
-      "Read(/D:\\WorkNotes\\budet/**)"
+      "Read(/D:\\WorkNotes\\budet/**)",
+      "Bash(C:Usersgena1AppDataLocalMicrosoftWindowsAppspython.exe test_new_format.py)"
     ],
     "deny": [],
     "ask": [],
