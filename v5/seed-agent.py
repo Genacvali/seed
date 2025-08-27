@@ -449,6 +449,10 @@ class SeedAgent:
                 # Sanitize LLM response
                 llm_response = self._sanitize(llm_response)
             
+            # Get current time for timestamp
+            import datetime
+            current_time = datetime.datetime.now()
+            
             # Merge rule-engine and LLM responses
             final_response = ""
             if pre_steps:
