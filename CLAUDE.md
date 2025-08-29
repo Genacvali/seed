@@ -68,7 +68,8 @@ tail -f seed-agent.log | grep -E "(📁|✅|❌|📤)"
 
 ### Dependencies
 ```bash
-# Install Python dependencies
+# Install Python dependencies (from v5/ directory)
+cd v5/
 pip3 install -r requirements.txt
 
 # Check Python dependencies availability
@@ -78,6 +79,7 @@ python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml, requests, d
 ### Docker Management
 ```bash
 # Docker image management (for offline deployment)
+# Note: These scripts are located in the root directory, not v5/
 ./export-images.sh            # Export images to tar files (run on online machine)
 ./load-images.sh             # Load images from tar files (run on offline target)
 
@@ -86,6 +88,9 @@ sudo ./fix-docker-tmp.sh      # Fix Docker temp space issues
 
 # Setup Docker configuration
 ./setup-docker-config.sh      # Configure Docker daemon settings
+
+# Check Docker services status
+docker ps --filter "name=seed-*"
 ```
 
 ### Configuration
@@ -185,6 +190,17 @@ For optimal LLM analysis, use the enriched JSON template in `ZABBIX_JSON_TEMPLAT
 6. **Queuing**: `queue.py` manages RabbitMQ for reliable delivery
 7. **Throttling**: `redis_throttle.py` prevents duplicate alerts
 
+### Module Dependencies
+- **seed-agent.py**: Main FastAPI application, orchestrates all components
+- **core/config.py**: YAML configuration loader with environment variable support
+- **core/llm.py**: GigaChat client with token management and environment validation
+- **core/alert_processor.py**: Plugin-based alert processing (though v5 uses universal LLM handler)
+- **core/formatter.py**: Message formatting with platform-specific templates
+- **core/notify.py & notify_enhanced.py**: Multi-channel notification delivery
+- **core/queue.py**: Async RabbitMQ queue management
+- **core/redis_throttle.py**: Redis-based alert deduplication and caching
+- **core/message_tracker.py**: Message tracking and deduplication
+
 ### Configuration System
 - Main config: `seed.yaml` (application settings)
 - Secrets: `seed.env` (credentials and sensitive data) 
@@ -213,3 +229,34 @@ For optimal LLM analysis, use the enriched JSON template in `ZABBIX_JSON_TEMPLAT
 - Multiple input sources supported: Alertmanager, Zabbix, direct API calls
 - Enhanced format testing available via `test_new_format.py` and `enhanced_format_demo.py`
 - Smoke testing with `./smoke-test.sh` verifies LLM functionality and Mattermost connectivity
+
+## Troubleshooting
+
+### Common Issues
+```bash
+# LLM disabled (llm: false in health check)
+curl http://localhost:8080/llm/selftest | jq .
+# Check that all GIGACHAT_* environment variables are present: true
+
+# Mattermost notifications not working
+tail -f seed-agent.log | grep -E "(📤|✅|❌).*[Mm]attermost"
+curl http://localhost:8080/config | jq .notifications.mattermost
+
+# Services not starting
+docker logs seed-redis
+docker logs seed-rabbitmq
+
+# Agent crashes on startup
+tail -20 seed-agent.log
+
+# Check system health
+curl http://localhost:8080/health | jq .
+curl http://localhost:8080/dashboard | jq .
+```
+
+### Log Analysis
+- **📁** Configuration and file operations
+- **📤** Outgoing notifications
+- **✅** Successful operations
+- **❌** Errors and failures
+- **🎉** System events
