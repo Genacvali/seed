@@ -4,259 +4,265 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-SEED Agent v5 - универсальная LLM-powered система обработки алертов с поддержкой мониторинга production окружений. Компактная архитектура с поддержкой GigaChat LLM, цветными уведомлениями и Final Fantasy стилизацией.
+SEED Agent - dual-architecture alert processing system with two distinct versions:
+- **v5**: Production-ready LLM-powered universal alert processor with Final Fantasy branding
+- **v6**: Lightweight plugin-based modular architecture for specialized alert handling
 
-## Project Structure
+## High-Level Architecture
 
-This repository contains:
-- **v5/**: Production-ready enhanced version with FF-styled branding, colored notifications, and compact formatting
-- **zabbix-webhook scripts**: Integration scripts for Zabbix monitoring systems
-- **Docker configuration files**: For infrastructure setup and deployment
+### v5: Universal LLM Processing
+- **Philosophy**: Monolithic FastAPI application with centralized LLM analysis
+- **Processing Model**: Single GigaChat-powered handler processes all alert types
+- **Dependencies**: Full infrastructure stack (Redis, RabbitMQ, MongoDB)
+- **Features**: FF-themed branding, colored notifications, comprehensive monitoring
+- **Size**: ~54KB main file with 13 core modules
 
-### Core Architecture
-- **seed-agent.py**: Main FastAPI HTTP server (port 8080)  
-- **core/**: Core modules for alert processing
-  - `config.py`: Configuration management with YAML and .env support
-  - `alert_processor.py`: Alert processing and lifecycle management with plugin support
-  - `llm.py`: LLM integration (GigaChat) for intelligent alert analysis
-  - `notify.py` & `notify_enhanced.py`: Multi-channel notification system (Mattermost, Slack, Email)
-  - `queue.py`: RabbitMQ queue management
-  - `redis_throttle.py`: Redis-based throttling and caching
-  - `formatter.py`: Message formatting with FF-style emoji icons and color support
-  - `message_tracker.py`: Message tracking and deduplication
-- **seed.yaml**: Main configuration file
-- **seed.env**: Environment variables (credentials)
-- **docker-compose.yml**: Infrastructure services (Redis, RabbitMQ)
-
-### v5 Enhancements
-- **🌌 SEED Branding**: Final Fantasy themed bot identity with crystal ball icon
-- **Colored Notifications**: Severity-based color coding for Mattermost (red=critical, orange=high, yellow=warning, blue=info)
-- **Compact Formatting**: Auto-truncated LLM recommendations (500 chars) with full text logged
-- **FF Emoji Icons**: 💎🔥 Critical, ⚔️ High, 🛡️ Warning, ✨ Info, ❔ Unknown
+### v6: Plugin-Based Specialization  
+- **Philosophy**: Minimal HTTP agent with modular plugin system
+- **Processing Model**: Route alerts to specialized plugins based on alert type/labels
+- **Dependencies**: Minimal Python-only stack (6 packages)
+- **Features**: Extensible plugin architecture, lightweight deployment
+- **Size**: ~24KB main file with optional components
 
 ## Development Commands
 
-### Starting/Stopping the System
+### v5 (Production System)
 ```bash
+# Working directory
 cd v5/
-./start.sh    # Start full stack (Redis, RabbitMQ, SEED Agent with FF branding)
-./stop.sh     # Stop all services
-```
 
-### Testing
-```bash
-# Comprehensive smoke test with LLM and Mattermost verification
-./smoke-test.sh
+# Start/stop full stack with infrastructure
+./start.sh    # Redis + RabbitMQ + SEED Agent
+./stop.sh     # Graceful shutdown
 
-# Test new compact message format
-python3 test_new_format.py
+# Configuration setup (required for LLM)
+cp seed.env.example seed.env
+# Edit seed.env with GigaChat credentials: GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET
 
-# Enhanced format demo
-python3 enhanced_format_demo.py
+# Hot configuration reload (recreates clients without restart)
+curl -X POST http://localhost:8080/config/reload
 
-# Health check
-curl http://localhost:8080/health
-
-# Test alert via API
-curl -X POST http://localhost:8080/alert \
-  -H 'Content-Type: application/json' \
-  -d '{"alerts":[{"labels":{"alertname":"Test","instance":"localhost","severity":"warning"},"annotations":{"summary":"Test alert"},"status":"firing"}]}'
-
-# Watch logs with emoji filtering (useful for troubleshooting)
-tail -f seed-agent.log | grep -E "(📁|✅|❌|📤)"
-```
-
-### Dependencies
-```bash
-# Install Python dependencies (from v5/ directory)
-cd v5/
+# Dependencies
 pip3 install -r requirements.txt
-
-# Check Python dependencies availability
 python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml, requests, dotenv"
 ```
 
-### Docker Management
+### v6 (Lightweight System)
 ```bash
-# Fix Docker daemon issues (if needed)
-sudo ./fix-docker-tmp.sh      # Fix Docker temp space issues
+# Working directory  
+cd v6/
 
-# Setup Docker configuration
-./setup-docker-config.sh      # Configure Docker daemon settings
+# Start/stop lightweight agent
+./start.sh    # Interactive setup or use existing config
+./stop.sh     # Simple process termination
 
-# Check Docker services status
-docker ps --filter "name=seed-*"
+# Configuration setup
+cp configs/seed.env.example configs/seed.env
+# Edit configs/seed.env with MM_WEBHOOK (required), optional LLM credentials
 
-# Manual Docker operations
-docker-compose up -d redis rabbitmq    # Start infrastructure only
-docker-compose down                     # Stop all Docker services
-docker-compose logs -f                  # Follow all container logs
+# Dependencies (minimal)
+pip3 install -r requirements.txt
+python3 -c "import fastapi, requests, dotenv"
 ```
 
-### Configuration
+### Testing Framework
+
+#### v5 Testing
 ```bash
-# IMPORTANT: Always work from the v5/ directory
 cd v5/
-
-# Setup environment file (required)
-cp seed.env.example seed.env
-# Edit seed.env with actual GigaChat credentials (GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET)
-
-# Reload configuration (hot reload) - recreates LLM and notification clients
-curl -X POST http://localhost:8080/config/reload
-
-# View current configuration (without secrets)
-curl http://localhost:8080/config
-
-# LLM diagnostics and self-test
-curl http://localhost:8080/llm/selftest
+./smoke-test.sh                 # Comprehensive LLM + Mattermost verification
+python3 test_new_format.py      # Compact message format testing
+python3 enhanced_format_demo.py # FF-style formatting demonstration
 ```
 
-## Key API Endpoints
-
-- `POST /alert` - Receive alerts from Alertmanager
-- `POST /zabbix` - Receive alerts from Zabbix (both v4 and v5)
-- `GET /health` - System health status  
-- `GET /dashboard` - Live metrics and status
-- `GET /config` - Current configuration view
-- `GET /llm/selftest` - LLM service diagnostics
-- `POST /config/reload` - Hot configuration reload
-- `GET /metrics` - Prometheus-style metrics
-- `GET /alerts/test` - Available test alerts
-
-## System Components
-
-- **SEED Agent**: FastAPI server on port 8080
-- **Redis**: Caching and throttling (port 6379)
-- **RabbitMQ**: Message queues (ports 5672/15672) 
-- **GigaChat LLM**: Intelligent alert analysis and formatting
-- **Notification Channels**: Mattermost, Slack, Email
-- **Data Fetchers**: MongoDB, Telegraf integration
-
-## Performance Characteristics
-
-- **Memory**: ~100MB agent + 450MB infrastructure
-- **CPU**: <1% idle, scales with alert volume  
-- **Throughput**: >1000 alerts/second
-- **Dependencies**: Docker for Redis/RabbitMQ, Python 3.8+
-
-## Zabbix Integration
-
-Multiple webhook scripts are available for Zabbix integration:
-- `zabbix-webhook.py` - Basic webhook for standard Zabbix setups
-- `zabbix-webhook-5.4.py` - Enhanced webhook for Zabbix 5.4.9 with URL parameter support
-- `zabbix-webhook-enriched.py` - **NEW**: Optimized webhook that proxies enriched JSON directly to /zabbix
-- `zabbix-script-adapted.py` - Adapted webhook script with enhanced error handling
-- `zabbix-to-seed.py` - General purpose Zabbix to SEED converter
-
-### Zabbix 5.4.9 Webhook Usage
+#### v6 Testing  
 ```bash
-# Via environment variable
-SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-5.4.py '<json_data>'
-
-# Via URL argument
-python3 zabbix-webhook-5.4.py "http://host:8080/zabbix" '<json_data>'
-
-# Test with manual alert
-SEED_URL="http://p-dba-seed-adv-msk01:8080/zabbix" \
-python3 zabbix-webhook-5.4.py \
-'{"event":{"value":"1"},"trigger":{"name":"Test","severity_text":"High"},"host":{"name":"db01"}}'
-
-# Using adapted script with enhanced features
-python3 zabbix-script-adapted.py '<json_data>'
-
-# Using enriched webhook (RECOMMENDED for best LLM context)
-SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-enriched.py '<enriched_json>'
-python3 zabbix-webhook-enriched.py "http://host:8080/zabbix" '<enriched_json>'
+cd v6/
+python3 test_llm.py             # Full-featured LLM integration test
+python3 test_plugin_system.py   # Plugin system end-to-end testing
+python3 test_prometheus.py      # Prometheus metrics integration
+python3 test_realistic.py       # Complex alert scenarios
+python3 test_format_fix.py      # Message formatting validation
+python3 debug_llm.py           # LLM debugging utilities
 ```
 
-All webhooks convert Zabbix alerts to SEED Agent format and send to `/zabbix` endpoint.
+### Health Checks and Diagnostics
+```bash
+# Both versions support these endpoints
+curl http://localhost:8080/health
+curl -X POST http://localhost:8080/test
 
-### Enriched Zabbix Template
-For optimal LLM analysis, use the enriched JSON template in `ZABBIX_JSON_TEMPLATE.md`. This provides:
-- Host IP addresses and groups for infrastructure context
-- Trigger tags and descriptions for precise diagnostics  
-- Item keys and last values for specific command recommendations
-- Event timing data for recovery tracking
+# v5 additional diagnostics
+curl http://localhost:8080/llm/selftest
+curl http://localhost:8080/dashboard
+curl http://localhost:8080/config | jq .
+
+# Alert testing (both versions)
+curl -X POST http://localhost:8080/alert \
+  -H 'Content-Type: application/json' \
+  -d '{"alerts":[{"labels":{"alertname":"Test","instance":"localhost","severity":"warning"},"annotations":{"summary":"Test alert"},"status":"firing"}]}'
+```
 
 ## Core Architecture Patterns
 
 ### Alert Processing Flow
-1. **Input**: Alerts received via `/alert` (Alertmanager) or `/zabbix` (Zabbix)
-2. **Processing**: `alert_processor.py` handles lifecycle, throttling, and enrichment
-3. **LLM Analysis**: `llm.py` performs intelligent analysis using GigaChat
-4. **Formatting**: `formatter.py` creates platform-specific messages (v5 has FF-style emojis)
-5. **Delivery**: `notify.py` sends to configured channels (Mattermost, Slack, Email)
-6. **Queuing**: `queue.py` manages RabbitMQ for reliable delivery
-7. **Throttling**: `redis_throttle.py` prevents duplicate alerts
+
+#### v5 Flow (Universal LLM)
+1. **Input**: `/alert` (Alertmanager) or `/zabbix` (Zabbix webhooks)
+2. **Processing**: `core/alert_processor.py` handles lifecycle and enrichment
+3. **LLM Analysis**: `core/llm.py` performs GigaChat-powered intelligent analysis
+4. **Formatting**: `core/formatter.py` creates FF-styled messages with color coding
+5. **Delivery**: `core/notify.py` sends to Mattermost/Slack/Email
+6. **Infrastructure**: Redis throttling, RabbitMQ queuing, message tracking
+
+#### v6 Flow (Plugin Routing)
+1. **Input**: `/alertmanager` or optional RabbitMQ consumer
+2. **Routing**: `plugin_router.py` maps alerts to specialized plugins via YAML rules
+3. **Processing**: Plugin-specific handlers in `plugins/` directory
+4. **Enrichment**: Optional Prometheus data fetching via `fetchers/telegraf.py`
+5. **Formatting**: Plugin-specific formatters in `formatters/` directory
+6. **Delivery**: Lightweight Mattermost client
+
+### Configuration Systems
+
+#### v5 Configuration
+- **Main Config**: `seed.yaml` - Hierarchical YAML with hot reload support
+- **Secrets**: `seed.env` - Environment variables for credentials
+- **Validation**: Runtime validation with comprehensive startup checks
+- **Management**: `/config/reload` API endpoint for zero-downtime updates
+
+#### v6 Configuration
+- **Main Config**: `configs/seed.env` - Flat key-value environment variables
+- **Alert Routing**: `configs/alerts.yaml` - Plugin routing rules
+- **Secrets**: `configs/secrets.env` - Credential storage with 600 permissions
+- **Management**: Interactive setup via `start.sh`
 
 ### Module Dependencies
-- **seed-agent.py**: Main FastAPI application, orchestrates all components
-- **core/config.py**: YAML configuration loader with environment variable support
-- **core/llm.py**: GigaChat client with token management and environment validation
-- **core/alert_processor.py**: Plugin-based alert processing (though v5 uses universal LLM handler)
-- **core/formatter.py**: Message formatting with platform-specific templates
-- **core/notify.py & notify_enhanced.py**: Multi-channel notification delivery
-- **core/queue.py**: Async RabbitMQ queue management
-- **core/redis_throttle.py**: Redis-based alert deduplication and caching
-- **core/message_tracker.py**: Message tracking and deduplication
 
-### Configuration System
-- Main config: `seed.yaml` (application settings)
-- Secrets: `seed.env` (credentials and sensitive data) 
-- Hot reload: `POST /config/reload` recreates all clients without restart
-- Environment loading: `start.sh` automatically sources `seed.env`
+#### v5 Core Modules (`/core/`)
+- `config.py` (11KB) - YAML configuration with environment support
+- `llm.py` (9KB) - GigaChat client with token management
+- `formatter.py` (19KB) - FF-themed message formatting with color coding  
+- `alert_processor.py` (6KB) - Alert lifecycle and enrichment
+- `notify.py` + `notify_enhanced.py` - Multi-channel notification delivery
+- `queue.py` (4KB) - Async RabbitMQ management
+- `redis_throttle.py` (4KB) - Redis-based throttling and caching
+- `message_tracker.py` (5KB) - Message deduplication
 
-### Key Features
-- **Rule Engine**: Deterministic rule-based responses for common alert patterns (MongoDB, Zabbix agent, TCP, disk space, CPU, memory)
-- **LLM Integration**: GigaChat-powered intelligent analysis with strict formatting requirements and low temperature (0.0) for consistent responses
-- **Enhanced Zabbix Integration**: Enriched JSON template with host IP, groups, trigger tags, item keys for precise LLM context
-- **Post-Processing**: Automatic sanitization to remove code fences, "bash" keywords, and empty sections
-- **Micro-Cosmetic Formatting**: Simplified emoji usage (🟥🟧🟨🟦 severity boxes, 💎 problems, 🛠 recommendations)
-- **Message Tracking**: Comprehensive message tracking and deduplication via `message_tracker.py`
-- **FF-Style Branding**: Final Fantasy themed bot identity with crystal ball icon
+#### v6 Core Modules (`/core/`)
+- `config.py` (2KB) - Minimal environment configuration
+- `llm.py` (4KB) - Optional GigaChat client  
+- `dispatcher.py` (1KB) - Plugin dispatch logic
+- `mm.py` (1KB) - Lightweight Mattermost client
+- `log.py` (1KB) - Logging utilities
+- `amqp.py` (1KB) - Optional RabbitMQ consumer
 
-## Important Notes
+#### v6 Plugin System
+- `plugin_router.py` (6KB) - Alert-to-plugin routing engine
+- `plugins/` - Specialized processors:
+  - `os_basic.py` (6KB) - OS metrics analysis (CPU/Memory/Disk)
+  - `pg_slow.py` (9KB) - PostgreSQL slow query diagnostics
+  - `mongo_hot.py` (3KB) - MongoDB performance analysis
+  - `host_inventory.py` (3KB) - Host service inventory
+- `fetchers/telegraf.py` (2KB) - Metrics enrichment from Telegraf
+- `formatters/` - Plugin-specific message formatting
 
-- All configuration in `seed.yaml` with secrets in `seed.env`
-- **CRITICAL**: LLM requires ALL GigaChat credentials in `seed.env` (GIGACHAT_CLIENT_ID, GIGACHAT_CLIENT_SECRET, GIGACHAT_SCOPE, etc.)
-- Without complete GigaChat config, LLM will be disabled (`llm: false` in health check)
-- System ready for production deployment 
-- Hot configuration reload supported via API - recreates LLM and notification clients
-- Comprehensive logging with emoji markers for easy filtering: 📁 📤 ✅ ❌ 🎉
-- Docker volumes mounted to `/data/{redis,rabbitmq}` for persistent storage
-- Alert deduplication and throttling handled automatically via Redis
-- Multiple input sources supported: Alertmanager, Zabbix, direct API calls
-- Enhanced format testing available via `test_new_format.py` and `enhanced_format_demo.py`
-- Smoke testing with `./smoke-test.sh` verifies LLM functionality and Mattermost connectivity
+## Key API Endpoints
+
+### Both Versions
+- `GET /health` - System health and component status
+- `POST /test` - Quick notification delivery test
+- `POST /alert` (v5) / `POST /alertmanager` (v6) - Alert webhook
+
+### v5 Specific  
+- `GET /dashboard` - Live metrics and system status
+- `GET /config` - Configuration view (secrets redacted)
+- `POST /config/reload` - Hot configuration reload
+- `GET /llm/selftest` - LLM service diagnostics
+- `GET /metrics` - Prometheus-style metrics
+- `POST /zabbix` - Zabbix webhook integration
+
+## Zabbix Integration
+
+Multiple webhook scripts support various Zabbix versions:
+- `zabbix-webhook.py` - Basic webhook for standard setups
+- `zabbix-webhook-5.4.py` - Enhanced webhook for Zabbix 5.4.9 with URL parameters
+- `zabbix-webhook-enriched.py` - **RECOMMENDED**: Optimized with enriched JSON context
+- `zabbix-script-adapted.py` - Enhanced error handling
+- `zabbix-to-seed.py` - General purpose converter
+
+### Usage Examples
+```bash
+# Environment variable method
+SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-5.4.py '<json_data>'
+
+# URL argument method  
+python3 zabbix-webhook-5.4.py "http://host:8080/zabbix" '<json_data>'
+
+# Enriched webhook (best LLM context)
+SEED_URL="http://host:8080/zabbix" python3 zabbix-webhook-enriched.py '<enriched_json>'
+```
+
+## Critical Requirements
+
+### v5 Requirements
+- **GigaChat Credentials**: ALL environment variables required in `seed.env`
+  - `GIGACHAT_CLIENT_ID`, `GIGACHAT_CLIENT_SECRET`, `GIGACHAT_SCOPE`
+  - Without complete config, LLM will be disabled (`llm: false` in health check)
+- **Infrastructure**: Docker required for Redis + RabbitMQ
+- **Working Directory**: Always operate from `v5/` directory
+
+### v6 Requirements  
+- **Mattermost Webhook**: `MM_WEBHOOK` required in `configs/seed.env`
+- **GigaChat Credentials**: Optional, only if `USE_LLM=1`
+- **Dependencies**: Python-only, no Docker required
+- **Working Directory**: Always operate from `v6/` directory
+
+## Performance Characteristics
+
+### v5 Performance
+- **Memory**: ~100MB agent + 450MB infrastructure (Redis/RabbitMQ)
+- **Throughput**: >1000 alerts/second
+- **Features**: Full monitoring, throttling, message tracking
+
+### v6 Performance
+- **Memory**: ~30MB agent only
+- **Throughput**: Scales with plugin complexity
+- **Features**: Minimal overhead, plugin-specific optimizations
 
 ## Troubleshooting
 
 ### Common Issues
 ```bash
-# LLM disabled (llm: false in health check)
+# LLM not working (both versions)
 curl http://localhost:8080/llm/selftest | jq .
-# Check that all GIGACHAT_* environment variables are present: true
+# Check environment variables are set
 
-# Mattermost notifications not working
-tail -f seed-agent.log | grep -E "(📤|✅|❌).*[Mm]attermost"
-curl http://localhost:8080/config | jq .notifications.mattermost
+# Notifications failing
+tail -f seed-agent.log | grep -E "(📤|✅|❌)"  # v5
+tail -f logs/agent.log | grep -E "MM_"        # v6
 
-# Services not starting
-docker logs seed-redis
-docker logs seed-rabbitmq
-
-# Agent crashes on startup
-tail -20 seed-agent.log
-
-# Check system health
+# Health checks
 curl http://localhost:8080/health | jq .
-curl http://localhost:8080/dashboard | jq .
 ```
 
-### Log Analysis
+### Log Analysis Markers  
 - **📁** Configuration and file operations
-- **📤** Outgoing notifications
+- **📤** Outgoing notifications  
 - **✅** Successful operations
 - **❌** Errors and failures
 - **🎉** System events
+
+## Version Selection Guide
+
+**Choose v5 when:**
+- Need comprehensive production monitoring
+- Want centralized LLM analysis for all alerts
+- Require advanced features (throttling, message tracking, multi-channel notifications)
+- Have infrastructure resources for Redis/RabbitMQ
+
+**Choose v6 when:**
+- Need lightweight deployment with minimal dependencies
+- Want specialized handling for different alert types
+- Prefer plugin-based extensibility
+- Have resource constraints or simple notification requirements
