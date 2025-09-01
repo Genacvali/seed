@@ -179,10 +179,16 @@ def _get_gc_token() -> Optional[str]:
 
 def llm_tip(prompt: str, max_tokens: int = 120) -> Optional[str]:
     if not USE_LLM:
+        print("[LLM] disabled (USE_LLM=0)")
         return None
+    
+    print(f"[LLM] requesting tip for prompt: {prompt[:100]}...")
+    
     tok = _get_gc_token()
     if not tok:
+        print("[LLM] no token available")
         return None
+        
     try:
         payload = {
             "model": GIGACHAT_MODEL,
@@ -193,15 +199,28 @@ def llm_tip(prompt: str, max_tokens: int = 120) -> Optional[str]:
                 {"role": "user", "content": prompt.strip()},
             ]
         }
+        
+        print(f"[LLM] sending request to {GIGACHAT_API_URL}")
         r = requests.post(GIGACHAT_API_URL, headers={"Authorization": f"Bearer {tok}"}, json=payload,
                           timeout=20, verify=GIGACHAT_VERIFY_SSL)
+        
+        print(f"[LLM] response status: {r.status_code}")
+        
         if r.status_code // 100 != 2:
             print(f"[LLM] chat ERR {r.status_code}: {r.text[:200]}")
             return None
+            
         j = r.json()
         msg = j.get("choices", [{}])[0].get("message", {}).get("content")
-        if isinstance(msg, str):
-            return " ".join(msg.strip().split())
+        
+        if isinstance(msg, str) and msg.strip():
+            result = " ".join(msg.strip().split())
+            print(f"[LLM] success: {result[:100]}...")
+            return result
+        else:
+            print(f"[LLM] empty or invalid response: {j}")
+            return None
+            
     except Exception as e:
         print(f"[LLM] chat EXC: {e}")
     return None
@@ -240,9 +259,21 @@ def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None) -> st
     sev = labels.get("severity", "info")
     summary = ann.get("summary") or ann.get("description") or ""
     
-    # FF-style иконки
+    # FF-style иконки  
     emoji = get_severity_emoji(sev)
-    status_icon = "🔴" if status == "firing" else "🟢"
+    # Цвет статуса зависит от severity, а не только от firing/resolved
+    if status == "resolved":
+        status_icon = "🟢"  # resolved всегда зеленый
+    else:
+        # firing - цвет по severity
+        severity_icons = {
+            "critical": "🔴", # красный
+            "high": "🟠",     # оранжевый  
+            "warning": "🟡",  # желтый
+            "info": "🔵",     # синий
+            "low": "🟢"       # зеленый
+        }
+        status_icon = severity_icons.get(sev.lower(), "🔴")
     
     # Компактный FF-стиль с обогащенными данными
     lines = [
