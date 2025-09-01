@@ -30,11 +30,11 @@ def run(alert: dict, prom, params: dict) -> dict:
         try:
             # CPU и Memory для хоста
             cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst_with_port}",mode="idle"}}[5m])))'
-            cpu = prom.last_value(cpu_expr)
+            cpu = prom.query_value(cpu_expr)
             lines.append(f"🔥 Host CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "🔥 Host CPU: n/a")
             
             mem_expr = f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst_with_port}"}} / node_memory_MemTotal_bytes{{instance="{inst_with_port}"}}))'
-            mem = prom.last_value(mem_expr)
+            mem = prom.query_value(mem_expr)
             lines.append(f"💾 Host Memory: {mem:.1f}%" if isinstance(mem, (int, float)) else "💾 Host Memory: n/a")
             
         except Exception as e:
@@ -49,13 +49,13 @@ def run(alert: dict, prom, params: dict) -> dict:
     try:
         # Active connections
         conn_expr = f'pg_stat_database_numbackends{{instance="{pg_instance}"}}'
-        connections = prom.last_value(conn_expr)
+        connections = prom.query_value(conn_expr)
         if isinstance(connections, (int, float)):
             lines.append(f"🔌 Active connections: {connections}")
         
         # Max connections
         max_conn_expr = f'pg_settings_max_connections{{instance="{pg_instance}"}}'
-        max_connections = prom.last_value(max_conn_expr)
+        max_connections = prom.query_value(max_conn_expr)
         if isinstance(max_connections, (int, float)) and isinstance(connections, (int, float)):
             conn_pct = (connections / max_connections) * 100
             lines.append(f"📊 Connection usage: {conn_pct:.1f}% ({connections}/{max_connections})")
@@ -68,7 +68,7 @@ def run(alert: dict, prom, params: dict) -> dict:
         try:
             # Idle in transaction count
             idle_expr = f'pg_stat_activity_count{{instance="{pg_instance}",state="idle in transaction"}}'
-            idle_count = prom.last_value(idle_expr)
+            idle_count = prom.query_value(idle_expr)
             if isinstance(idle_count, (int, float)):
                 lines.append(f"😴 Idle in transaction: {idle_count} sessions")
                 
@@ -91,8 +91,8 @@ def run(alert: dict, prom, params: dict) -> dict:
             active_expr = f'pg_stat_activity_count{{instance="{pg_instance}",state="active"}}'
             idle_expr = f'pg_stat_activity_count{{instance="{pg_instance}",state="idle"}}'
             
-            active = prom.last_value(active_expr)
-            idle = prom.last_value(idle_expr)
+            active = prom.query_value(active_expr)
+            idle = prom.query_value(idle_expr)
             
             if isinstance(active, (int, float)):
                 lines.append(f"⚡ Active queries: {active}")
@@ -107,7 +107,7 @@ def run(alert: dict, prom, params: dict) -> dict:
         try:
             # Waiting locks
             locks_expr = f'pg_locks_count{{instance="{pg_instance}",mode="AccessExclusiveLock"}}'
-            locks = prom.last_value(locks_expr)
+            locks = prom.query_value(locks_expr)
             if isinstance(locks, (int, float)) and locks > 0:
                 lines.append(f"🔒 Exclusive locks waiting: {locks}")
                 lines.append("")
@@ -152,7 +152,7 @@ def run(alert: dict, prom, params: dict) -> dict:
     try:
         # Database size
         db_size_expr = f'pg_database_size_bytes{{instance="{pg_instance}"}}'
-        db_size = prom.last_value(db_size_expr)
+        db_size = prom.query_value(db_size_expr)
         if isinstance(db_size, (int, float)):
             size_gb = db_size / (1024**3)
             lines.append(f"💿 Database size: {size_gb:.2f} GB")
@@ -161,8 +161,8 @@ def run(alert: dict, prom, params: dict) -> dict:
         commit_expr = f'rate(pg_stat_database_xact_commit{{instance="{pg_instance}"}}[5m])'
         rollback_expr = f'rate(pg_stat_database_xact_rollback{{instance="{pg_instance}"}}[5m])'
         
-        commits = prom.last_value(commit_expr)
-        rollbacks = prom.last_value(rollback_expr)
+        commits = prom.query_value(commit_expr)
+        rollbacks = prom.query_value(rollback_expr)
         
         if isinstance(commits, (int, float)):
             lines.append(f"✅ Commits/sec: {commits:.1f}")

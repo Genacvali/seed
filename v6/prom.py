@@ -50,3 +50,8 @@ def last_value(result: list) -> float:
     except Exception:
         pass
     return None
+
+def query_value(expr: str, ts: float = None) -> float:
+    """Удобная функция: запрос + извлечение значения"""
+    result = query(expr, ts)
+    return last_value(result)

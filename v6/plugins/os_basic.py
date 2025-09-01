@@ -30,17 +30,17 @@ def run(alert: dict, prom, params: dict) -> dict:
         try:
             # CPU usage
             cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst_with_port}",mode="idle"}}[5m])))'
-            cpu = prom.last_value(cpu_expr)
+            cpu = prom.query_value(cpu_expr)
             lines.append(f"🔥 CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "🔥 CPU: n/a")
             
             # Memory usage
             mem_expr = f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst_with_port}"}} / node_memory_MemTotal_bytes{{instance="{inst_with_port}"}}))'
-            mem = prom.last_value(mem_expr)
+            mem = prom.query_value(mem_expr)
             lines.append(f"💾 Memory: {mem:.1f}%" if isinstance(mem, (int, float)) else "💾 Memory: n/a")
             
             # Load average
             load_expr = f'node_load1{{instance="{inst_with_port}"}}'
-            load = prom.last_value(load_expr)
+            load = prom.query_value(load_expr)
             lines.append(f"⚖️ Load (1m): {load:.2f}" if isinstance(load, (int, float)) else "⚖️ Load: n/a")
             
         except Exception as e:
@@ -52,7 +52,7 @@ def run(alert: dict, prom, params: dict) -> dict:
             disk_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}} 
                            - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}})
                            / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}}'''
-            disk = prom.last_value(disk_expr.replace('\n', '').strip())
+            disk = prom.query_value(disk_expr.replace('\n', '').strip())
             if isinstance(disk, (int, float)):
                 icon = "🔴" if disk > 90 else "🟡" if disk > 80 else "🟢"
                 lines.append(f"{icon} Disk {path}: {disk:.1f}%")
@@ -63,7 +63,7 @@ def run(alert: dict, prom, params: dict) -> dict:
     if show_swap:
         try:
             swap_expr = f'100 * (1 - (node_memory_SwapFree_bytes{{instance="{inst_with_port}"}} / node_memory_SwapTotal_bytes{{instance="{inst_with_port}"}}))'
-            swap = prom.last_value(swap_expr)
+            swap = prom.query_value(swap_expr)
             lines.append(f"🔄 Swap: {swap:.1f}%" if isinstance(swap, (int, float)) else "🔄 Swap: n/a")
         except Exception:
             lines.append("🔄 Swap: n/a")
@@ -75,8 +75,8 @@ def run(alert: dict, prom, params: dict) -> dict:
             net_rx_expr = f'rate(node_network_receive_bytes_total{{instance="{inst_with_port}",device!~"lo|docker.*|veth.*"}}[5m]) * 8'
             net_tx_expr = f'rate(node_network_transmit_bytes_total{{instance="{inst_with_port}",device!~"lo|docker.*|veth.*"}}[5m]) * 8'
             
-            net_rx = prom.last_value(net_rx_expr)
-            net_tx = prom.last_value(net_tx_expr)
+            net_rx = prom.query_value(net_rx_expr)
+            net_tx = prom.query_value(net_tx_expr)
             
             if isinstance(net_rx, (int, float)) and isinstance(net_tx, (int, float)):
                 rx_mbps = net_rx / 1_000_000  # Convert to Mbps
@@ -92,7 +92,7 @@ def run(alert: dict, prom, params: dict) -> dict:
         try:
             # Running processes
             procs_expr = f'node_processes_running{{instance="{inst_with_port}"}}'
-            procs = prom.last_value(procs_expr)
+            procs = prom.query_value(procs_expr)
             lines.append(f"⚙️ Running processes: {procs}" if isinstance(procs, (int, float)) else "⚙️ Processes: n/a")
         except Exception:
             lines.append("⚙️ Processes: n/a")
