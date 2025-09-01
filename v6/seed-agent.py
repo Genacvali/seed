@@ -23,6 +23,14 @@ try:
 except Exception:
     load_dotenv = None
 
+# Prometheus enrichment (опционально)
+try:
+    from enrich import enrich_alert
+    ENRICHMENT_AVAILABLE = True
+except Exception:
+    ENRICHMENT_AVAILABLE = False
+    def enrich_alert(alert): return {}
+
 # ---------------------------
 # Загрузка ENV из configs/seed.env
 # ---------------------------
@@ -75,6 +83,12 @@ RABBIT_USER     = os.getenv("RABBIT_USER", "seed")
 RABBIT_PASS     = os.getenv("RABBIT_PASS", "seedpass")
 RABBIT_VHOST    = os.getenv("RABBIT_VHOST", "/")
 RABBIT_QUEUE    = os.getenv("RABBIT_QUEUE", "seed-inbox")
+
+# Prometheus enrichment
+PROM_URL        = os.getenv("PROM_URL", "")
+PROM_VERIFY_SSL = os.getenv("PROM_VERIFY_SSL", "1") not in ("0", "false", "False")
+PROM_TIMEOUT    = os.getenv("PROM_TIMEOUT", "3")
+PROM_BEARER     = os.getenv("PROM_BEARER", "")
 
 # ---------------------------
 # Утилиты: Mattermost
@@ -217,7 +231,7 @@ def get_mattermost_color(severity: str) -> str:
     }
     return color_map.get(severity.lower(), "#808080")
 
-def fmt_alert_line(alert: Dict[str, Any]) -> str:
+def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None) -> str:
     labels = alert.get("labels", {})
     ann = alert.get("annotations", {})
     status = alert.get("status", "firing")
@@ -230,10 +244,19 @@ def fmt_alert_line(alert: Dict[str, Any]) -> str:
     emoji = get_severity_emoji(sev)
     status_icon = "🔴" if status == "firing" else "🟢"
     
-    # Компактный FF-стиль
-    return (f"{emoji} **{name}** {status_icon}\n"
-            f"└── Host: `{inst}` | Severity: **{sev.upper()}**\n"
-            f"└── {summary}")
+    # Компактный FF-стиль с обогащенными данными
+    lines = [
+        f"{emoji} **{name}** {status_icon}",
+        f"└── Host: `{inst}` | Severity: **{sev.upper()}**"
+    ]
+    
+    # Добавляем enriched контекст если есть
+    if enriched and enriched.get("summary_line"):
+        lines.append(f"└── 📊 {enriched['summary_line']}")
+    
+    lines.append(f"└── {summary}")
+    
+    return "\n".join(lines)
 
 def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
     """Возвращает (текст_сообщения, цвет_для_mattermost)"""
@@ -245,10 +268,31 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
     
     lines = []
     severities = []
+    llm_context = []
     
     for a in alerts:
-        lines.append(fmt_alert_line(a))
+        # Обогащаем алерт данными из Prometheus
+        enriched = {}
+        if ENRICHMENT_AVAILABLE and PROM_URL:
+            try:
+                enriched = enrich_alert(a)
+                print(f"[ENRICH] {a.get('labels', {}).get('alertname', 'Alert')}: {enriched.get('summary_line', 'no data')}")
+            except Exception as e:
+                print(f"[ENRICH] failed: {e}")
+        
+        lines.append(fmt_alert_line(a, enriched))
         severities.append(a.get("labels", {}).get("severity", "info"))
+        
+        # Создаем более богатый контекст для LLM
+        labels = a.get("labels", {})
+        ann = a.get("annotations", {})
+        alert_context = f"{labels.get('alertname', 'Alert')}: {ann.get('summary', '')}"
+        
+        # Добавляем метрики в контекст для LLM
+        if enriched.get("summary_line"):
+            alert_context += f" | Метрики: {enriched['summary_line']}"
+            
+        llm_context.append(alert_context)
     
     text = head + "\n\n" + "\n\n".join(lines)
     
@@ -260,16 +304,11 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
         stats = " | ".join([f"{get_severity_emoji(s)} {s}:{c}" for s, c in sev_counts.items()])
         text += f"\n\n📊 **Summary:** {stats}"
     
-    # LLM рекомендация
+    # LLM рекомендация с обогащенным контекстом
     if USE_LLM and len(alerts) > 0:
-        # Создаем контекст для LLM
-        context = []
-        for a in alerts[:3]:  # Берем первые 3 алерта
-            labels = a.get("labels", {})
-            ann = a.get("annotations", {})
-            context.append(f"{labels.get('alertname', 'Alert')}: {ann.get('summary', '')}")
-        
-        prompt = f"Алерты мониторинга: {'; '.join(context)}. Дай 1-2 практических шага диагностики (макс 150 символов)."
+        # Используем обогащенный контекст для более точных рекомендаций
+        context_str = "; ".join(llm_context[:3])  # Первые 3 алерта
+        prompt = f"Алерты мониторинга с метриками: {context_str}. Дай 1-2 конкретных шага диагностики (макс 150 символов)."
         tip = llm_tip(prompt, max_tokens=80)
         if tip:
             text += f"\n\n🧠 **Магия кристалла:** {tip}"
@@ -297,7 +336,9 @@ async def health():
         "mm_webhook": bool(MM_WEBHOOK),
         "use_llm": USE_LLM,
         "rabbit_enabled": RABBIT_ENABLE,
-        "version": "v6"
+        "prometheus_enrichment": ENRICHMENT_AVAILABLE and bool(PROM_URL),
+        "prometheus_url": PROM_URL if PROM_URL else None,
+        "version": "v6.1"
     }
 
 @app.post("/test")
