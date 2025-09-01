@@ -56,11 +56,9 @@ prompt_secret() { # prompt_secret VAR "Prompt" [silent]
 need_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "$(err) missing: $1"; exit 1; }; }
 
 # ---------- banner ----------
-echo
-info "== SEED v6.1 start =="
-echo "Base:        $BASE_DIR"
-echo "Configs:     $CFG_DIR"
-echo "Logs:        $LOG_DIR"
+echo "🌌 ================================"
+echo "🌌 SEED Agent v6.1 - Starting..."
+echo "🌌 ================================"
 echo
 
 # ---------- sanity / CRLF fix ----------
@@ -91,7 +89,9 @@ export LISTEN_PORT="${LISTEN_PORT:-8080}"
 HOSTNAME_FQDN="$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo localhost)"
 HEALTH_URL="http://${HOSTNAME_FQDN}:${LISTEN_PORT}/health"
 
-echo "HTTP:        ${LISTEN_HOST}:${LISTEN_PORT}"
+# ---------- config summary ----------
+echo "📋 Configuration:"
+echo "   Listen: ${LISTEN_HOST}:${LISTEN_PORT}"
 
 # ---------- rabbit (optional) ----------
 export RABBIT_ENABLE="${RABBIT_ENABLE:-0}"
@@ -103,9 +103,9 @@ if [[ "$RABBIT_ENABLE" == "1" ]]; then
   prompt_secret RABBIT_PASS "RabbitMQ password" silent
   export RABBIT_VHOST="${RABBIT_VHOST:-/}"
   export RABBIT_QUEUE="${RABBIT_QUEUE:-seed-inbox}"
-  echo "RabbitMQ:    $(ok) enabled → ${RABBIT_USER}@${RABBIT_HOST}:${RABBIT_PORT}${RABBIT_VHOST} q=${RABBIT_QUEUE}"
+  echo "   RabbitMQ: ✅ ${RABBIT_USER}@${RABBIT_HOST}:${RABBIT_PORT}${RABBIT_VHOST} q=${RABBIT_QUEUE}"
 else
-  echo "RabbitMQ:    disabled (set RABBIT_ENABLE=1 to enable)"
+  echo "   RabbitMQ: ⏸️  disabled"
 fi
 
 # ---------- LLM (optional) ----------
@@ -119,9 +119,9 @@ if [[ "$USE_LLM" == "1" ]]; then
   export GIGACHAT_MODEL="${GIGACHAT_MODEL:-GigaChat-2}"
   export GIGACHAT_VERIFY_SSL="${GIGACHAT_VERIFY_SSL:-0}"
   export GIGACHAT_TOKEN_CACHE="${GIGACHAT_TOKEN_CACHE:-/tmp/gigachat_token.json}"
-  echo "LLM:         $(ok) enabled (GigaChat)"
+  echo "   LLM: ✅ GigaChat (${GIGACHAT_MODEL})"
 else
-  echo "LLM:         disabled"
+  echo "   LLM: ⏸️  disabled"
 fi
 
 # ---------- Mattermost ----------
@@ -129,49 +129,61 @@ if [[ -z "${MM_WEBHOOK:-}" ]]; then
   prompt_secret MM_WEBHOOK "Mattermost webhook URL (empty to skip)"
 fi
 export MM_VERIFY_SSL="${MM_VERIFY_SSL:-0}"
-echo "Mattermost:  $( [[ -n "${MM_WEBHOOK:-}" ]] && echo "$(ok) set" || echo "not set" )"
+echo "   Mattermost: $( [[ -n "${MM_WEBHOOK:-}" ]] && echo "✅ webhook configured" || echo "❌ not configured" )"
 
 # ---------- deps check ----------
 need_cmd python3
 need_cmd curl
 
+echo
+echo "🚀 Starting services..."
+
 # ---------- start agent ----------
 : > "$HTTP_LOG"
 if pgrep -f "python3.*seed-agent.py" >/dev/null 2>&1; then
-  echo "Agent:       already running"
+  echo "   📤 HTTP server: already running"
 else
-  echo -n "Agent:       starting… "
+  echo -n "   📤 HTTP server: starting... "
   nohup python3 "$BASE_DIR/seed-agent.py" >>"$HTTP_LOG" 2>&1 &
-  sleep 0.5
-  echo "$(ok)"
+  sleep 1
+  echo "✅"
 fi
 
 # ---------- wait health ----------
-echo -n "Health:      waiting ${HEALTH_URL} "
-for i in {1..40}; do
+echo -n "   🏥 Health check: ${HEALTH_URL} "
+for i in {1..30}; do
   if curl -fsS "$HEALTH_URL" >/dev/null 2>&1; then
-    echo "$(ok)"
+    echo "✅"
     break
   fi
   echo -n "."
   sleep 0.5
-  if (( i == 40 )); then
-    echo " $(err) timeout"
-    echo "Last 20 lines of $HTTP_LOG:"
-    tail -n 20 "$HTTP_LOG" || true
+  if (( i == 30 )); then
+    echo " ❌ timeout"
+    echo
+    echo "❌ Failed to start. Last 15 lines of $HTTP_LOG:"
+    tail -n 15 "$HTTP_LOG" 2>/dev/null || echo "No log file"
     exit 1
   fi
 done
 
-# ---------- pretty links ----------
+# ---------- success banner ----------
 echo
-info "== READY =="
-echo "Health:      $HEALTH_URL"
-echo "Webhook:     http://${HOSTNAME_FQDN}:${LISTEN_PORT}/alertmanager"
-echo "Test (POST): http://${HOSTNAME_FQDN}:${LISTEN_PORT}/test"
-echo "Agent log:   $HTTP_LOG"
+echo "🎉 ================================"
+echo "🎉 SEED Agent v6.1 - Ready!"
+echo "🎉 ================================"
 echo
-echo "Tips:"
-echo "  WRITE_SECRETS=1 ./start.sh     # save entered passwords to configs/secrets.env (600)"
-echo "  tail -f $HTTP_LOG              # monitor agent"
+echo "📡 API Endpoints:"
+echo "   Health:     $HEALTH_URL"
+echo "   Webhook:    http://${HOSTNAME_FQDN}:${LISTEN_PORT}/alertmanager"
+echo "   Test:       http://${HOSTNAME_FQDN}:${LISTEN_PORT}/test"
+echo
+echo "📋 Logs & Management:"
+echo "   Agent log:  tail -f $HTTP_LOG"
+echo "   Stop:       ./stop.sh"
+echo "   Restart:    ./stop.sh && ./start.sh"
+echo
+echo "🔧 Quick test commands:"
+echo "   curl $HEALTH_URL | jq ."
+echo "   curl -X POST $HEALTH_URL/../test"
 echo
