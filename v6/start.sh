@@ -99,14 +99,19 @@ if [[ "$RABBIT_ENABLE" == "1" ]]; then
   export RABBIT_HOST="${RABBIT_HOST:-localhost}"
   export RABBIT_PORT="${RABBIT_PORT:-5672}"
   export RABBIT_SSL="${RABBIT_SSL:-0}"
-  export RABBIT_USER="${RABBIT_USER:-seed}"
-  export RABBIT_PASS="${RABBIT_PASS:-seedpass}"
   export RABBIT_VHOST="${RABBIT_VHOST:-/}"
   export RABBIT_QUEUE="${RABBIT_QUEUE:-seed-inbox}"
   
-  # Prompt только если не заданы
-  [[ -z "${RABBIT_USER}" ]] && prompt_secret RABBIT_USER "RabbitMQ user [seed]"
-  [[ -z "${RABBIT_PASS}" ]] && prompt_secret RABBIT_PASS "RabbitMQ password" silent
+  # Prompt только если не заданы в конфиге
+  if [[ -z "${RABBIT_USER:-}" ]]; then
+    prompt_secret RABBIT_USER "RabbitMQ user [seed]"
+    [[ -z "${RABBIT_USER}" ]] && RABBIT_USER="seed"
+  fi
+  
+  if [[ -z "${RABBIT_PASS:-}" ]]; then
+    prompt_secret RABBIT_PASS "RabbitMQ password" silent
+    [[ -z "${RABBIT_PASS}" ]] && RABBIT_PASS="seedpass"
+  fi
   
   echo "   RabbitMQ: ✅ ${RABBIT_USER}@${RABBIT_HOST}:${RABBIT_PORT}${RABBIT_VHOST} q=${RABBIT_QUEUE}"
 else
