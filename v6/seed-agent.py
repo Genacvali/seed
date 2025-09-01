@@ -203,7 +203,7 @@ def _get_gc_token() -> Optional[str]:
         print(f"[LLM] OAuth EXC: {e}")
         return None
 
-def llm_tip(prompt: str, max_tokens: int = 120) -> Optional[str]:
+def llm_tip(prompt: str, max_tokens: int = 400) -> Optional[str]:
     if not USE_LLM:
         print("[LLM] disabled (USE_LLM=0)")
         return None
@@ -365,8 +365,8 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
     if USE_LLM and len(alerts) > 0:
         # Используем обогащенный контекст для более точных рекомендаций
         context_str = "; ".join(llm_context[:3])  # Первые 3 алерта
-        prompt = f"Алерты мониторинга с метриками: {context_str}. Дай 1-2 конкретных шага диагностики (макс 150 символов)."
-        tip = llm_tip(prompt, max_tokens=80)
+        prompt = f"Алерты мониторинга с метриками: {context_str}. Дай подробную диагностику и 3-4 конкретных шага решения проблемы."
+        tip = llm_tip(prompt, max_tokens=400)
         if tip:
             text += f"\n\n🧠 **Магия кристалла:** {tip}"
     

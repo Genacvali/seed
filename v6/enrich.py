@@ -18,6 +18,13 @@ def enrich_alert(alert: dict) -> dict:
     labels = alert.get("labels", {})
     inst   = labels.get("instance") or labels.get("host")
     mount  = labels.get("mountpoint") or labels.get("path")
+    
+    # Нормализуем instance - добавляем порт если нет
+    if inst and ":" not in inst:
+        # Для node_exporter обычно порт 9100
+        inst_with_port = f"{inst}:9100"
+    else:
+        inst_with_port = inst
     end    = time.time()
     start  = end - LOOKBACK
 
@@ -25,16 +32,16 @@ def enrich_alert(alert: dict) -> dict:
 
     if inst:
         # CPU (node_exporter вариант)
-        cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst}",mode="idle"}}[5m])))'
+        cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst_with_port}",mode="idle"}}[5m])))'
         # Если у тебя Telegraf-монолит в Prom, можно заменить на свой метрик-нейм:
-        # cpu_expr = f'avg(cpu_usage{{instance="{inst}"}})'
+        # cpu_expr = f'avg(cpu_usage{{instance="{inst_with_port}"}})'
 
         mem_expr = (
-            f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst}"}}'
-            f' / node_memory_MemTotal_bytes{{instance="{inst}"}}))'
+            f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst_with_port}"}}'
+            f' / node_memory_MemTotal_bytes{{instance="{inst_with_port}"}}))'
         )
         # Для Telegraf (если имена другие):
-        # mem_expr = f'100 * ((mem_total{{instance="{inst}"}} - mem_available{{instance="{inst}"}}) / mem_total{{instance="{inst}"}})'
+        # mem_expr = f'100 * ((mem_total{{instance="{inst_with_port}"}} - mem_available{{instance="{inst_with_port}"}}) / mem_total{{instance="{inst_with_port}"}})'
 
         try:
             enr["cpu_now"] = last_value(query(cpu_expr))
@@ -45,12 +52,12 @@ def enrich_alert(alert: dict) -> dict:
     if inst and mount:
         # Использование диска (node_exporter)
         disk_expr = (
-            f'100 * (node_filesystem_size_bytes{{instance="{inst}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}}'
-            f' - node_filesystem_avail_bytes{{instance="{inst}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}})'
-            f' / node_filesystem_size_bytes{{instance="{inst}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}}'
+            f'100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}}'
+            f' - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}})'
+            f' / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{mount}",fstype!~"tmpfs|overlay"}}'
         )
         # Telegraf-вариант:
-        # disk_expr = f'disk_used_percent{{instance="{inst}",path="{mount}"}}'
+        # disk_expr = f'disk_used_percent{{instance="{inst_with_port}",path="{mount}"}}'
 
         try:
             enr["disk_used_now"] = last_value(query(disk_expr))
@@ -68,7 +75,7 @@ def enrich_alert(alert: dict) -> dict:
     # Пример для Mongo COLLSCAN (если метрика есть в Prom — от Telegraf/экспортеров)
     if labels.get("alertname","").lower().startswith("mongohot"):
         # адаптируй expr под свою метрику (пример ниже — иллюстрация)
-        expr = f'sum(increase(mongodb_op_collsacn_total{{instance="{inst}"}}[15m]))'
+        expr = f'sum(increase(mongodb_op_collsacn_total{{instance="{inst_with_port}"}}[15m]))'
         try:
             enr["mongo_colls_scans_15m"] = last_value(query(expr))
         except Exception:
@@ -76,7 +83,7 @@ def enrich_alert(alert: dict) -> dict:
 
     # Пример для Postgres slow queries (тоже под свою метрику/экспортер)
     if labels.get("alertname","").lower().startswith("pgslow"):
-        expr = f'sum(increase(pg_stat_statements_calls_slow_total{{instance="{inst}"}}[15m]))'
+        expr = f'sum(increase(pg_stat_statements_calls_slow_total{{instance="{inst_with_port}"}}[15m]))'
         try:
             enr["pg_slow_15m"] = last_value(query(expr))
         except Exception:
