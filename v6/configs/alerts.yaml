@@ -70,10 +70,10 @@ routes:
     plugin: "os_basic"
     params: { show_network: true, lookback: "10m" }
 
-  # === Zabbix Integration ===
-  - match: { alertname: "Zabbix agent on * is unreachable" }
+  # === Agent Monitoring ===
+  - match: { alertname: "*agent* is unreachable" }
     plugin: "host_inventory"
-    params: { show_services: ["zabbix-agent", "zabbix-agent2"], ping_test: true }
+    params: { show_services: ["node-exporter", "telegraf"], ping_test: true }
 
   # === Generic/Fallback ===
   - match: { severity: "critical" }
