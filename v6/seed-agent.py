@@ -321,7 +321,7 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
         return "🌌 **SEED Crystal** - No alerts detected", None
     
     # FF-style заголовок
-    head = "🌌 **SEED Crystal** - Alert System\n" + "═" * 35
+    head = "🌌 **S.E.E.D.** - Smart Event Explainer & Diagnostics\n" + "═" * 55
     
     lines = []
     severities = []
