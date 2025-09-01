@@ -203,6 +203,27 @@ def _get_gc_token() -> Optional[str]:
         print(f"[LLM] OAuth EXC: {e}")
         return None
 
+def clean_llm_response(text: str) -> str:
+    """Очищает LLM ответ от блоков кода и форматирует для Mattermost"""
+    import re
+    
+    # Убираем блоки кода ```sql, ```bash и т.д.
+    text = re.sub(r'```\w*\n.*?\n```', '', text, flags=re.DOTALL)
+    text = re.sub(r'```.*?```', '', text, flags=re.DOTALL)
+    
+    # Убираем лишние ключевые слова
+    text = re.sub(r'\b(sql|bash|plpgsql)\b', '', text, flags=re.IGNORECASE)
+    
+    # Заменяем нумерацию на переносы строк для лучшего форматирования
+    text = re.sub(r'\b(\d+)\.\s*', r'\n• ', text)
+    text = re.sub(r'\b(Диагностика:|Рекомендации:)', r'\n**\1**', text)
+    
+    # Чистим лишние пробелы и пустые строки
+    lines = [line.strip() for line in text.split('\n')]
+    lines = [line for line in lines if line and line != '•']
+    
+    return '\n'.join(lines).strip()
+
 def llm_tip(prompt: str, max_tokens: int = 400) -> Optional[str]:
     if not USE_LLM:
         print("[LLM] disabled (USE_LLM=0)")
@@ -240,7 +261,8 @@ def llm_tip(prompt: str, max_tokens: int = 400) -> Optional[str]:
         msg = j.get("choices", [{}])[0].get("message", {}).get("content")
         
         if isinstance(msg, str) and msg.strip():
-            result = " ".join(msg.strip().split())
+            # Очищаем ответ от блоков кода и форматируем
+            result = clean_llm_response(msg.strip())
             print(f"[LLM] success: {result[:100]}...")
             return result
         else:
