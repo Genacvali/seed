@@ -2,28 +2,23 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-PID_FILE="logs/agent.pid"
-if [[ -f "$PID_FILE" ]]; then
-  PID="$(cat "$PID_FILE" || true)"
-  if [[ -n "${PID:-}" ]] && kill -0 "$PID" 2>/dev/null; then
-    echo "Stopping HTTP agent (pid $PID)…"
-    kill "$PID" || true
-    sleep 1
-    if kill -0 "$PID" 2>/dev/null; then
-      echo "Force kill…"
-      kill -9 "$PID" || true
-    fi
+echo "== SEED v6 stop =="
+
+# Kill by process signature
+if pgrep -f "python3.*seed-agent.py" >/dev/null 2>&1; then
+  echo -n "Stopping seed-agent.py… "
+  pkill -f "python3.*seed-agent.py" || true
+  sleep 1
+  if pgrep -f "python3.*seed-agent.py" >/dev/null 2>&1; then
+    echo -n "force kill… "
+    pkill -9 -f "python3.*seed-agent.py" || true
   fi
-  rm -f "$PID_FILE"
+  echo "OK"
 else
-  # на всякий случаи прибить по подписи
-  pkill -f "python3.*seed-agent.py" 2>/dev/null || true
+  echo "seed-agent.py not running"
 fi
 
-# Останавливать контейнер RabbitMQ — по желанию:
-if [[ "${STOP_RABBIT_CONTAINER:-0}" == "1" ]]; then
-  NAME="${RABBIT_CONTAINER:-seed-rabbitmq}"
-  docker rm -f "$NAME" 2>/dev/null || true
-fi
+# Clean PID files if any exist
+rm -f logs/agent.pid logs/rabbit.pid 2>/dev/null || true
 
-echo "Stopped."
+echo "== SEED v6 stopped =="
