@@ -78,11 +78,6 @@ python3 -c "import fastapi, uvicorn, aio_pika, redis, pymongo, yaml, requests, d
 
 ### Docker Management
 ```bash
-# Docker image management (for offline deployment)
-# Note: These scripts are located in the root directory, not v5/
-./export-images.sh            # Export images to tar files (run on online machine)
-./load-images.sh             # Load images from tar files (run on offline target)
-
 # Fix Docker daemon issues (if needed)
 sudo ./fix-docker-tmp.sh      # Fix Docker temp space issues
 
@@ -91,6 +86,11 @@ sudo ./fix-docker-tmp.sh      # Fix Docker temp space issues
 
 # Check Docker services status
 docker ps --filter "name=seed-*"
+
+# Manual Docker operations
+docker-compose up -d redis rabbitmq    # Start infrastructure only
+docker-compose down                     # Stop all Docker services
+docker-compose logs -f                  # Follow all container logs
 ```
 
 ### Configuration
