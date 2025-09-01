@@ -31,6 +31,23 @@ except Exception:
     ENRICHMENT_AVAILABLE = False
     def enrich_alert(alert): return {}
 
+# Plugin system
+try:
+    from plugin_router import plugin_router
+    PLUGINS_AVAILABLE = True
+except Exception as e:
+    print(f"[PLUGIN] Failed to load plugin system: {e}")
+    PLUGINS_AVAILABLE = False
+    plugin_router = None
+
+# Prometheus client for plugins
+try:
+    import prom
+    PROM_CLIENT_AVAILABLE = True
+except Exception:
+    PROM_CLIENT_AVAILABLE = False
+    prom = None
+
 # ---------------------------
 # Загрузка ENV из configs/seed.env
 # ---------------------------
@@ -349,6 +366,8 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
     severities = []
     llm_context = []
     
+    plugin_results = []
+    
     for a in alerts:
         # Обогащаем алерт данными из Prometheus
         enriched = {}
@@ -358,6 +377,16 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
                 print(f"[ENRICH] {a.get('labels', {}).get('alertname', 'Alert')}: {enriched.get('summary_line', 'no data')}")
             except Exception as e:
                 print(f"[ENRICH] failed: {e}")
+        
+        # Запускаем плагин для алерта
+        plugin_result = None
+        if PLUGINS_AVAILABLE and plugin_router and PROM_CLIENT_AVAILABLE and prom:
+            try:
+                plugin_result = plugin_router.run_plugin(a, prom)
+                if plugin_result:
+                    plugin_results.append(plugin_result)
+            except Exception as e:
+                print(f"[PLUGIN] Error processing alert: {e}")
         
         lines.append(fmt_alert_line(a, enriched))
         severities.append(a.get("labels", {}).get("severity", "info"))
@@ -370,6 +399,11 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
         # Добавляем метрики в контекст для LLM
         if enriched.get("summary_line"):
             alert_context += f" | Метрики: {enriched['summary_line']}"
+        
+        # Добавляем результаты плагина в контекст LLM
+        if plugin_result and plugin_result.get("lines"):
+            plugin_summary = "; ".join(plugin_result["lines"][:3])  # Первые 3 строки
+            alert_context += f" | Плагин: {plugin_summary}"
             
         llm_context.append(alert_context)
     
@@ -382,6 +416,16 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
             sev_counts[s] = sev_counts.get(s, 0) + 1
         stats = " | ".join([f"{get_severity_emoji(s)} {s}:{c}" for s, c in sev_counts.items()])
         text += f"\n\n📊 **Summary:** {stats}"
+    
+    # Результаты плагинов (детальная диагностика)
+    if plugin_results:
+        text += f"\n\n🔧 **Детальная диагностика:**"
+        for result in plugin_results[:2]:  # Максимум 2 плагина, чтобы не перегружать
+            if result.get("title") and result.get("lines"):
+                text += f"\n\n**{result['title']}**\n"
+                # Ограничиваем количество строк от плагина
+                plugin_lines = result["lines"][:8]  # Максимум 8 строк
+                text += "\n".join(plugin_lines)
     
     # LLM рекомендация с обогащенным контекстом
     if USE_LLM and len(alerts) > 0:
@@ -410,7 +454,7 @@ app = FastAPI(title="SEED v6 Agent")
 
 @app.get("/health")
 async def health():
-    return {
+    health_info = {
         "status": "ok",
         "mm_webhook": bool(MM_WEBHOOK),
         "use_llm": USE_LLM,
@@ -419,6 +463,24 @@ async def health():
         "prometheus_url": PROM_URL if PROM_URL else None,
         "version": "v6.1"
     }
+    
+    # Добавляем информацию о плагинах
+    if PLUGINS_AVAILABLE and plugin_router:
+        try:
+            plugin_info = plugin_router.get_plugin_info()
+            health_info.update({
+                "plugins_enabled": True,
+                "plugin_routes": plugin_info.get("routes_count", 0),
+                "default_plugin": plugin_info.get("default_plugin", "unknown"),
+                "available_plugins": plugin_info.get("available_plugins", [])
+            })
+        except Exception as e:
+            health_info["plugins_enabled"] = False
+            health_info["plugin_error"] = str(e)
+    else:
+        health_info["plugins_enabled"] = False
+    
+    return health_info
 
 @app.post("/test")
 async def test_endpoint(req: Request):

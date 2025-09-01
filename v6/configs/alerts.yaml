@@ -1,0 +1,85 @@
+# SEED v6 - Alert to Plugin Mapping Configuration
+# Маппинг алертов к плагинам для специализированной обработки
+
+routes:
+  # === OS/System Alerts ===
+  - match: { alertname: "DiskSpaceLow" }
+    plugin: "os_basic" 
+    params: { show_paths: ["/", "/data", "/var/lib"], lookback: "15m" }
+
+  - match: { alertname: "DiskSpaceHigh" }
+    plugin: "os_basic"
+    params: { show_paths: ["/", "/var/lib/postgresql", "/data"], lookback: "15m" }
+    
+  - match: { alertname: "HighCPUUsage" }
+    plugin: "os_basic"
+    params: { show_processes: true, lookback: "10m" }
+
+  - match: { alertname: "HighMemoryUsage" }
+    plugin: "os_basic" 
+    params: { show_processes: true, show_swap: true, lookback: "10m" }
+
+  - match: { alertname: "LoadAverage" }
+    plugin: "os_basic"
+    params: { show_processes: true, lookback: "5m" }
+
+  # === MongoDB Alerts ===
+  - match: { alertname: "MongoCollscan" }
+    plugin: "mongo_hot"
+    params: { show_host_metrics: true, lookback: "5m", top_collections: 5 }
+
+  - match: { alertname: "MongoSlowQuery" }
+    plugin: "mongo_hot"
+    params: { show_host_metrics: true, lookback: "10m", slow_threshold: 1000 }
+
+  - match: { alertname: "MongoReplicaLag" }
+    plugin: "mongo_hot"
+    params: { show_replica_status: true, show_host_metrics: true }
+
+  - match: { alertname: "MongoConnections" }
+    plugin: "mongo_hot"
+    params: { show_connections: true, show_host_metrics: true }
+
+  # === PostgreSQL Alerts ===
+  - match: { alertname: "PostgresSlowQuery" }
+    plugin: "pg_slow"
+    params: { top: 5, show_host_metrics: true, min_duration: "1s" }
+
+  - match: { alertname: "PG_IdleInTransaction_Storm" }
+    plugin: "pg_slow"
+    params: { show_idle_transactions: true, show_host_metrics: true, top: 10 }
+
+  - match: { alertname: "PostgresConnections" }
+    plugin: "pg_slow"
+    params: { show_connections: true, show_host_metrics: true }
+
+  - match: { alertname: "PostgresDeadlocks" }
+    plugin: "pg_slow"
+    params: { show_locks: true, show_host_metrics: true, top: 5 }
+
+  # === Network & Services ===
+  - match: { alertname: "InstanceDown" }
+    plugin: "host_inventory"
+    params: { show_services: true, ping_test: true }
+
+  - match: { alertname: "ServiceDown" }
+    plugin: "host_inventory"
+    params: { show_services: true, check_ports: true }
+
+  - match: { alertname: "HighNetworkTraffic" }
+    plugin: "os_basic"
+    params: { show_network: true, lookback: "10m" }
+
+  # === Zabbix Integration ===
+  - match: { alertname: "Zabbix agent on * is unreachable" }
+    plugin: "host_inventory"
+    params: { show_services: ["zabbix-agent", "zabbix-agent2"], ping_test: true }
+
+  # === Generic/Fallback ===
+  - match: { severity: "critical" }
+    plugin: "os_basic"
+    params: { show_host_metrics: true, lookback: "5m" }
+
+# Default plugin when no routes match
+default_plugin: "echo"
+default_params: { show_basic_info: true }
