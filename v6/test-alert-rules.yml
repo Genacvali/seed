@@ -1,0 +1,70 @@
+# Тестовые правила для проверки интеграции SEED v6
+# Добавьте в /etc/prometheus/rules/
+
+groups:
+- name: seed.test.integration
+  rules:
+  # Тестовые алерты с правильными именами для плагинов SEED
+  
+  # 1. PostgreSQL тест (→ pg_slow plugin)
+  - alert: PG_IdleInTransaction_Storm
+    expr: |
+      pg_stat_activity_count{state="idle in transaction"} > 5
+      OR on() vector(1)  # всегда срабатывает для теста
+    for: 30s
+    labels:
+      severity: warning
+      service: postgresql
+    annotations:
+      summary: "TEST: Много idle in transaction сессий на {{ $labels.instance }}"
+      description: "Тестовый алерт для проверки pg_slow плагина"
+
+  # 2. Системный тест (→ os_basic plugin)  
+  - alert: DiskSpaceHigh
+    expr: |
+      100 * (node_filesystem_size_bytes - node_filesystem_avail_bytes) 
+      / node_filesystem_size_bytes > 85
+      OR on() vector(1)  # всегда срабатывает для теста
+    for: 30s
+    labels:
+      severity: critical
+      service: system
+    annotations:
+      summary: "TEST: Диск заполнен на {{ $labels.instance }}"
+      description: "Тестовый алерт для проверки os_basic плагина"
+
+  # 3. MongoDB тест (→ mongo_hot plugin)
+  - alert: MongoCollscan
+    expr: |
+      rate(mongodb_metrics_operation_scan_total[5m]) > 50
+      OR on() vector(1)  # всегда срабатывает для теста  
+    for: 30s
+    labels:
+      severity: high
+      service: mongodb
+    annotations:
+      summary: "TEST: MongoDB много collection scans"
+      description: "Тестовый алерт для проверки mongo_hot плагина"
+
+  # 4. Хост тест (→ host_inventory plugin)
+  - alert: InstanceDown
+    expr: up == 0
+    for: 1m
+    labels:
+      severity: critical
+      service: monitoring
+    annotations:
+      summary: "TEST: Instance {{ $labels.instance }} недоступен"
+      description: "Тестовый алерт для проверки host_inventory плагина"
+
+  # 5. Общий тест (→ echo plugin default)
+  - alert: TestGeneralAlert  
+    expr: |
+      up == 1  # всегда срабатывает
+    for: 30s
+    labels:
+      severity: info
+      service: test
+    annotations:
+      summary: "TEST: Общий тестовый алерт"
+      description: "Должен попасть в echo плагин по умолчанию"
