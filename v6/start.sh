@@ -1,91 +1,132 @@
 #!/usr/bin/env bash
-set -euo pipefail
-cd "$(dirname "$0")"
+# == SEED v6 start ==
+set -Eeuo pipefail
+
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$BASE_DIR"
+
+CFG_DIR="$BASE_DIR/configs"
+LOG_DIR="$BASE_DIR/logs"
+mkdir -p "$CFG_DIR" "$LOG_DIR"
+
+ENV_MAIN="$CFG_DIR/seed.env"
+ENV_SECR="$CFG_DIR/secrets.env"
+
+touch "$ENV_SECR" && chmod 600 "$ENV_SECR"
+
+load_env() {
+  set -a
+  [[ -f "$ENV_MAIN" ]] && source "$ENV_MAIN"
+  [[ -f "$ENV_SECR" ]] && source "$ENV_SECR"
+  set +a
+}
+
+save_secret() {
+  # save_secret VAR value
+  local var="$1" val="$2"
+  # do not echo secrets to stdout
+  grep -qE "^${var}=" "$ENV_SECR" 2>/dev/null \
+    && sed -i "s|^${var}=.*$|${var}=${val//|/\\|}|" "$ENV_SECR" \
+    || echo "${var}=${val}" >> "$ENV_SECR"
+}
+
+prompt_secret() {
+  # prompt_secret VAR "Prompt" [silent]
+  local var="$1" prompt="$2" silent="${3:-}"
+  local curr="${!var:-}"
+  if [[ -z "$curr" ]]; then
+    if [[ -n "$silent" ]]; then
+      read -r -s -p "$prompt: " curr; echo
+    else
+      read -r -p "$prompt: " curr
+    fi
+  fi
+  export "$var"="$curr"
+  [[ "${WRITE_SECRETS:-0}" == "1" ]] && save_secret "$var" "$curr"
+}
 
 echo "== SEED v6 start =="
 
-# --- env ---
-if [[ ! -f "configs/seed.env" ]]; then
-  echo "⚠️  configs/seed.env not found. Creating from example…"
-  # починить CRLF, если есть
-  [[ -f "configs/seed.env.example" ]] && sed -i 's/\r$//' configs/seed.env.example || true
-  cp -f configs/seed.env.example configs/seed.env
-  echo "➡️  Edit configs/seed.env and re-run."
-  exit 1
+# 0) Первичная env
+if [[ ! -f "$ENV_MAIN" ]]; then
+  echo "⚠️  $ENV_MAIN not found, create it from seed.env.example and edit."
 fi
+load_env
 
-# убрать CRLF на всякий случай
-sed -i 's/\r$//' configs/seed.env || true
-set -a; . configs/seed.env; set +a
+# 1) HTTP
+export LISTEN_HOST="${LISTEN_HOST:-0.0.0.0}"
+export LISTEN_PORT="${LISTEN_PORT:-8080}"
 
-HOSTNAME_CMD="$(hostname -f 2>/dev/null || hostname || echo localhost)"
-BASE_URL="http://$HOSTNAME_CMD:${LISTEN_PORT:-8080}"
-
-# --- optional: autostart RabbitMQ in Docker (как в v5) ---
-if [[ "${RABBIT_ENABLE:-0}" == "1" && "${RABBIT_AUTOSTART:-0}" == "1" ]]; then
-  if ! command -v docker >/dev/null 2>&1; then
-    echo "❌ Docker not found, set RABBIT_AUTOSTART=0 or install docker"
-    exit 1
-  fi
-  NAME="${RABBIT_CONTAINER:-seed-rabbitmq}"
-  IMG="${RABBIT_IMAGE:-rabbitmq:3.13-management}"
-  AMQP_PORT="${RABBIT_PORT_AMQP:-5672}"
-  UI_PORT="${RABBIT_PORT_UI:-15672}"
-
-  if ! docker ps --format '{{.Names}}' | grep -q "^${NAME}$"; then
-    echo "🐰 Starting RabbitMQ container ${NAME}…"
-    docker run -d --restart unless-stopped \
-      --name "$NAME" \
-      -e RABBITMQ_DEFAULT_USER="${RABBIT_USER:-seed}" \
-      -e RABBITMQ_DEFAULT_PASS="${RABBIT_PASS:-seedpass}" \
-      -p "${AMQP_PORT}:5672" -p "${UI_PORT}:15672" \
-      "$IMG" >/dev/null
-  else
-    echo "🐰 RabbitMQ container already running"
-  fi
-
-  echo -n "⏳ Waiting RabbitMQ UI on http://localhost:${UI_PORT} "
-  for i in {1..60}; do
-    if curl -fsS "http://localhost:${UI_PORT}" >/dev/null 2>&1; then echo "✅"; break; fi
-    [[ $i -eq 60 ]] && { echo "❌ timeout"; exit 1; }
-    sleep 2; echo -n "."
-  done
-elif [[ "${RABBIT_ENABLE:-0}" == "1" ]]; then
-  echo "🐰 RabbitMQ consumer enabled (external): ${RABBIT_USER:-seed}@${RABBIT_HOST:-localhost}:${RABBIT_PORT:-5672}/${RABBIT_VHOST:-/} q=${RABBIT_QUEUE:-seed-inbox}"
+# 2) RabbitMQ (optional)
+export RABBIT_ENABLE="${RABBIT_ENABLE:-0}"
+if [[ "$RABBIT_ENABLE" == "1" ]]; then
+  export RABBIT_HOST="${RABBIT_HOST:-localhost}"
+  export RABBIT_PORT="${RABBIT_PORT:-5672}"
+  export RABBIT_SSL="${RABBIT_SSL:-0}"
+  prompt_secret RABBIT_USER "RabbitMQ Username [seed]"; [[ -z "$RABBIT_USER" ]] && RABBIT_USER="seed"
+  prompt_secret RABBIT_PASS "RabbitMQ Password" silent
+  export RABBIT_VHOST="${RABBIT_VHOST:-/}"
+  export RABBIT_QUEUE="${RABBIT_QUEUE:-seed-inbox}"
+  echo "🐰 RabbitMQ consumer enabled: ${RABBIT_USER}@${RABBIT_HOST}:${RABBIT_PORT}${RABBIT_VHOST} q=${RABBIT_QUEUE}"
 else
-  echo "🐰 RabbitMQ consumer disabled (RABBIT_ENABLE=0)"
+  echo "RabbitMQ agent disabled (RABBIT_ENABLE=0)"
 fi
 
-# --- start HTTP agent ---
-mkdir -p logs
-if pgrep -f "python3.*seed-agent.py" >/dev/null; then
+# 3) Mattermost
+prompt_secret MM_WEBHOOK "Mattermost webhook URL (leave empty to skip)"
+export MM_VERIFY_SSL="${MM_VERIFY_SSL:-0}"
+
+# 4) LLM (optional)
+export USE_LLM="${USE_LLM:-0}"
+if [[ "$USE_LLM" == "1" ]]; then
+  prompt_secret GIGACHAT_CLIENT_ID "GigaChat CLIENT_ID"
+  prompt_secret GIGACHAT_CLIENT_SECRET "GigaChat CLIENT_SECRET" silent
+  export GIGACHAT_SCOPE="${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}"
+  export GIGACHAT_OAUTH_URL="${GIGACHAT_OAUTH_URL:-https://ngw.devices.sberbank.ru:9443/api/v2/oauth}"
+  export GIGACHAT_API_URL="${GIGACHAT_API_URL:-https://gigachat.devices.sberbank.ru/api/v1/chat/completions}"
+  export GIGACHAT_MODEL="${GIGACHAT_MODEL:-GigaChat-2}"
+  export GIGACHAT_VERIFY_SSL="${GIGACHAT_VERIFY_SSL:-0}"
+  export GIGACHAT_TOKEN_CACHE="${GIGACHAT_TOKEN_CACHE:-/tmp/gigachat_token.json}"
+fi
+
+# 5) Запуск HTTP-агента
+HTTP_LOG="$LOG_DIR/agent.log"
+: > "$HTTP_LOG"
+
+if pgrep -f "python3 seed-http.py" >/dev/null 2>&1; then
   echo "ℹ️  HTTP already running"
 else
-  nohup python3 seed-agent.py > logs/agent.log 2>&1 &
-  echo $! > logs/agent.pid
+  nohup python3 "$BASE_DIR/seed-http.py" >>"$HTTP_LOG" 2>&1 &
+  HTTP_PID=$!
+  echo "HTTP started: PID $HTTP_PID"
 fi
 
-# --- wait HTTP ready ---
-echo -n "⏳ Waiting HTTP ${BASE_URL}/health "
-for i in {1..30}; do
-  if curl -fsS "${BASE_URL}/health" >/dev/null 2>&1; then echo "✅"; break; fi
-  [[ $i -eq 30 ]] && { echo "❌ timeout (see logs/agent.log)"; exit 1; }
-  sleep 1; echo -n "."
+# 6) Запуск Rabbit consumer (если включен)
+if [[ "$RABBIT_ENABLE" == "1" ]]; then
+  RAB_LOG="$LOG_DIR/rabbit.log"
+  : > "$RAB_LOG"
+  if pgrep -f "python3 seed-rabbit.py" >/dev/null 2>&1; then
+    echo "ℹ️  Rabbit consumer already running"
+  else
+    nohup python3 "$BASE_DIR/seed-rabbit.py" >>"$RAB_LOG" 2>&1 &
+    RAB_PID=$!
+    echo "Rabbit started: PID $RAB_PID"
+  fi
+fi
+
+# 7) Ожидание health
+HEALTH_URL="http://$(hostname -f 2>/dev/null || echo localhost):${LISTEN_PORT}/health"
+echo -n "⏳ Waiting HTTP $HEALTH_URL "
+for _ in {1..30}; do
+  if curl -sS "$HEALTH_URL" >/dev/null 2>&1; then
+    echo "✅"
+    break
+  fi
+  echo -n "."
+  sleep 1
 done
 
 echo "== OK =="
-echo "Health:      ${BASE_URL}/health"
-echo "Test (POST): ${BASE_URL}/test"
-echo "Alert hook:  ${BASE_URL}/alertmanager"
-if [[ "${RABBIT_ENABLE:-0}" == "1" ]]; then
-  if [[ "${RABBIT_AUTOSTART:-0}" == "1" ]]; then
-    echo "Rabbit UI:   http://$HOSTNAME_CMD:${RABBIT_PORT_UI:-15672}  (user: ${RABBIT_USER:-seed})"
-  else
-    echo "Rabbit:      ${RABBIT_HOST:-localhost}:${RABBIT_PORT:-5672} vhost=${RABBIT_VHOST:-/} q=${RABBIT_QUEUE:-seed-inbox}"
-  fi
-fi
-
-echo ""
-echo "Quick cmds:"
-echo "  curl ${BASE_URL}/health | jq ."
-echo "  curl -X POST ${BASE_URL}/test -H 'Content-Type: application/json' -d '{\"alertname\":\"Test\", \"instance\":\"${HOSTNAME_CMD}\"}'"
+echo "Health:      $HEALTH_URL"
+echo "Test (POST): http://$(hostname -f):${LISTEN_PORT}/test"
+echo "Webhook:     http://$(hostname -f):${LISTEN_PORT}/alertmanager"
