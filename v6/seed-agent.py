@@ -144,35 +144,61 @@ def _now_ms() -> int:
     return int(time.time() * 1000)
 
 def _get_gc_token() -> Optional[str]:
-    # cache first
+    # cache first  
     cached = _load_cached_token()
     if cached and isinstance(cached, dict):
-        if cached.get("access_token") and cached.get("expires_at", 0) - _now_ms() > 10_000:
+        # Проверяем по времени жизни токена
+        if cached.get("access_token") and cached.get("exp", 0) > int(time.time()) + 30:
             return cached["access_token"]
 
     if not (GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET):
+        print("[LLM] OAuth credentials missing")
         return None
 
-    # OAuth
+    # OAuth (как в v5)
     try:
-        import base64
-        credentials = f"{GIGACHAT_CLIENT_ID}:{GIGACHAT_CLIENT_SECRET}"
-        encoded_credentials = base64.b64encode(credentials.encode()).decode()
+        import base64, uuid
         
+        # Подавляем SSL warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        auth_key = base64.b64encode(f"{GIGACHAT_CLIENT_ID}:{GIGACHAT_CLIENT_SECRET}".encode()).decode()
         hdr = {
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json",
-            "RqUID": str(int(time.time()*1000)),
-            "Authorization": f"Basic {encoded_credentials}"
+            "RqUID": str(uuid.uuid4()),  # Важно! UUID, не timestamp
+            "Authorization": f"Basic {auth_key}"
         }
+        
         data = {"scope": GIGACHAT_SCOPE}
+        print(f"[LLM] OAuth request to {GIGACHAT_OAUTH_URL}")
+        
         r = requests.post(GIGACHAT_OAUTH_URL, headers=hdr, data=data, timeout=15, verify=GIGACHAT_VERIFY_SSL)
+        print(f"[LLM] OAuth status: {r.status_code}")
+        
         if r.status_code // 100 != 2:
             print(f"[LLM] OAuth ERR {r.status_code}: {r.text[:200]}")
             return None
-        tok = r.json()
-        _save_cached_token(tok)
-        return tok.get("access_token")
+            
+        tok_data = r.json()
+        print(f"[LLM] OAuth response keys: {list(tok_data.keys())}")
+        
+        # Сохраняем как в v5
+        token = tok_data.get("access_token")
+        if token:
+            # Сохраняем с правильным форматом времени
+            cache_data = {
+                "access_token": token,
+                "exp": int(time.time()) + 1800  # 30 минут
+            }
+            _save_cached_token(cache_data)
+            print(f"[LLM] OAuth success, token cached")
+            return token
+        else:
+            print(f"[LLM] No access_token in response: {tok_data}")
+            return None
+            
     except Exception as e:
         print(f"[LLM] OAuth EXC: {e}")
         return None
@@ -425,13 +451,25 @@ def rabbit_consume_loop():
         return
         
     creds = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
-    params = pika.ConnectionParameters(
-        host=RABBIT_HOST,
-        port=RABBIT_PORT,
-        virtual_host=RABBIT_VHOST,
-        credentials=creds,
-        ssl=RABBIT_SSL
-    )
+    if RABBIT_SSL:
+        # SSL connection
+        import pika.adapters.utils.connection_workflow
+        ssl_options = pika.SSLOptions(context=None)
+        params = pika.ConnectionParameters(
+            host=RABBIT_HOST,
+            port=RABBIT_PORT,
+            virtual_host=RABBIT_VHOST,
+            credentials=creds,
+            ssl_options=ssl_options
+        )
+    else:
+        # Regular connection
+        params = pika.ConnectionParameters(
+            host=RABBIT_HOST,
+            port=RABBIT_PORT,
+            virtual_host=RABBIT_VHOST,
+            credentials=creds
+        )
     while True:
         try:
             print(f"[*] Rabbit connect to {RABBIT_HOST}:{RABBIT_PORT} vhost={RABBIT_VHOST} q={RABBIT_QUEUE}")

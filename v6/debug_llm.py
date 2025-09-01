@@ -32,23 +32,27 @@ def test_gigachat_direct():
         print("❌ GigaChat credentials missing")
         return False
     
-    # Тестируем OAuth
+    # Тестируем OAuth (как в v5)
     try:
-        import base64
-        credentials = f"{GIGACHAT_CLIENT_ID}:{GIGACHAT_CLIENT_SECRET}"
-        encoded_credentials = base64.b64encode(credentials.encode()).decode()
+        import base64, uuid
         
+        # Подавляем SSL warnings
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        
+        auth_key = base64.b64encode(f"{GIGACHAT_CLIENT_ID}:{GIGACHAT_CLIENT_SECRET}".encode()).decode()
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json", 
-            "Authorization": f"Basic {encoded_credentials}",
-            "RqUID": "test-12345"
+            "Accept": "application/json",
+            "RqUID": str(uuid.uuid4()),  # UUID, не строка
+            "Authorization": f"Basic {auth_key}"
         }
         
         data = {"scope": "GIGACHAT_API_PERS"}
         oauth_url = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
         
         print(f"🔐 Testing OAuth: {oauth_url}")
+        print(f"   RqUID: {headers['RqUID']}")
         r = requests.post(oauth_url, headers=headers, data=data, timeout=15, verify=False)
         
         print(f"   Status: {r.status_code}")
