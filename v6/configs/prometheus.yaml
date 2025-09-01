@@ -1,0 +1,106 @@
+# Prometheus Integration Configuration
+prometheus:
+  # Prometheus server URL for metrics fetching
+  url: "http://localhost:9090"
+  
+  # Authentication (if needed)
+  # auth:
+  #   username: "prometheus_user"
+  #   password: "prometheus_pass"
+  
+  # Default query timeout
+  timeout: 30
+  
+  # SSL verification
+  verify_ssl: true
+  
+  # Default query range
+  default_range: "5m"
+  
+  # Common labels to include in queries
+  common_labels:
+    environment: "production"
+    team: "platform"
+
+# Alertmanager Configuration
+alertmanager:
+  # Alertmanager URL
+  url: "https://alertmanager.sberdevices.ru"
+  
+  # API path
+  api_path: "/api/v2"
+  
+  # Authentication token (set via environment variable)
+  # auth_token: "${ALERTMANAGER_TOKEN}"
+  
+  # Webhook endpoints
+  webhook:
+    # SEED Agent webhook endpoint that Alertmanager should call
+    receiver_url: "http://your-seed-agent:8080/alertmanager"
+    
+    # Basic auth for webhook (optional)
+    # auth:
+    #   username: "seed_webhook"
+    #   password: "webhook_secret"
+  
+  # Polling configuration (if using pull mode)
+  polling:
+    enabled: true
+    interval: 60  # seconds
+    active_only: true  # only fetch active alerts
+    
+  # SSL verification
+  verify_ssl: true
+  
+  # Request timeout
+  timeout: 30
+
+# Alert routing rules for different sources
+routing:
+  # Default plugin for unknown alerts
+  default_plugin: "echo"
+  
+  # Specific routing rules
+  rules:
+    # Infrastructure alerts
+    - match:
+        labels:
+          alertname: "InstanceDown|NodeDown|ServiceDown"
+        annotations: {}
+      plugin: "os_basic"
+      
+    # Database performance
+    - match:
+        labels:
+          alertname: "PostgreSQLSlowQueries|DatabaseHighLoad"
+        annotations: {}
+      plugin: "pg_slow"
+      
+    # MongoDB alerts
+    - match:
+        labels:
+          service: "mongodb"
+        annotations: {}
+      plugin: "mongo_hot"
+      
+    # Host inventory requests
+    - match:
+        labels:
+          alertname: "HostInventoryRequest"
+        annotations:
+          seed_plugin: "host_inventory"
+      plugin: "host_inventory"
+
+# Metrics collection for monitoring SEED Agent itself
+metrics:
+  # Enable Prometheus metrics endpoint
+  enabled: true
+  endpoint: "/metrics"
+  
+  # Custom metrics to track
+  custom_metrics:
+    - alerts_processed_total
+    - alerts_by_severity
+    - plugin_execution_duration
+    - llm_requests_total
+    - notification_delivery_status
