@@ -79,12 +79,24 @@ RABBIT_QUEUE    = os.getenv("RABBIT_QUEUE", "seed-inbox")
 # ---------------------------
 # Утилиты: Mattermost
 # ---------------------------
-def mm_post(text: str) -> bool:
+def mm_post(text: str, color: Optional[str] = None) -> bool:
     if not MM_WEBHOOK:
         print("[MM] webhook not set")
         return False
     try:
-        r = requests.post(MM_WEBHOOK, json={"text": text}, timeout=10, verify=MM_VERIFY_SSL)
+        # Если указан цвет, используем attachment для цветного сообщения
+        if color:
+            payload = {
+                "attachments": [{
+                    "color": color,
+                    "text": text,
+                    "mrkdwn_in": ["text"]
+                }]
+            }
+        else:
+            payload = {"text": text}
+            
+        r = requests.post(MM_WEBHOOK, json=payload, timeout=10, verify=MM_VERIFY_SSL)
         if r.status_code // 100 == 2:
             print("[MM] OK")
             return True
@@ -181,35 +193,97 @@ def llm_tip(prompt: str, max_tokens: int = 120) -> Optional[str]:
     return None
 
 # ---------------------------
-# Форматирование алертов
+# Форматирование алертов (Final Fantasy style)
 # ---------------------------
+def get_severity_emoji(severity: str) -> str:
+    """Возвращает эмодзи и цвет для уровня критичности"""
+    sev_map = {
+        "critical": "💎🔥",  # Critical - красный кристалл с огнем
+        "high": "⚔️",       # High - меч  
+        "warning": "🛡️",    # Warning - щит
+        "info": "✨",       # Info - звездочка
+        "low": "🌟"         # Low - обычная звезда
+    }
+    return sev_map.get(severity.lower(), "❔")
+
+def get_mattermost_color(severity: str) -> str:
+    """Возвращает цвет для Mattermost attachment"""
+    color_map = {
+        "critical": "#FF0000",  # Красный
+        "high": "#FF8C00",      # Оранжевый  
+        "warning": "#FFD700",   # Желтый
+        "info": "#00BFFF",      # Синий
+        "low": "#90EE90"        # Светло-зеленый
+    }
+    return color_map.get(severity.lower(), "#808080")
+
 def fmt_alert_line(alert: Dict[str, Any]) -> str:
     labels = alert.get("labels", {})
-    ann    = alert.get("annotations", {})
+    ann = alert.get("annotations", {})
     status = alert.get("status", "firing")
-    name   = labels.get("alertname", "Alert")
-    inst   = labels.get("instance") or labels.get("pod") or labels.get("job") or "-"
-    sev    = labels.get("severity", "info")
+    name = labels.get("alertname", "Alert")
+    inst = labels.get("instance") or labels.get("pod") or labels.get("job") or "-"
+    sev = labels.get("severity", "info")
     summary = ann.get("summary") or ann.get("description") or ""
-    return (f"**{name}** · `{status}` · sev={sev}\n"
-            f"• instance: `{inst}`\n"
-            f"• {summary}".strip())
+    
+    # FF-style иконки
+    emoji = get_severity_emoji(sev)
+    status_icon = "🔴" if status == "firing" else "🟢"
+    
+    # Компактный FF-стиль
+    return (f"{emoji} **{name}** {status_icon}\n"
+            f"└── Host: `{inst}` | Severity: **{sev.upper()}**\n"
+            f"└── {summary}")
 
-def fmt_batch_message(alerts: List[Dict[str, Any]]) -> str:
+def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
+    """Возвращает (текст_сообщения, цвет_для_mattermost)"""
     if not alerts:
-        return "SEED: пустой список алёртов"
-    head = "SEED · Alertmanager webhook\n"
+        return "🌌 **SEED Crystal** - No alerts detected", None
+    
+    # FF-style заголовок
+    head = "🌌 **SEED Crystal** - Alert System\n" + "═" * 35
+    
     lines = []
+    severities = []
+    
     for a in alerts:
         lines.append(fmt_alert_line(a))
+        severities.append(a.get("labels", {}).get("severity", "info"))
+    
     text = head + "\n\n" + "\n\n".join(lines)
-    # LLM одна короткая рекомендация на пачку
-    tip = llm_tip("Даны одну или несколько аварий мониторинга (Prometheus Alertmanager). "
-                  "Предложи 1–2 очень кратких практичных шага диагностики (≤180 символов). "
-                  "Без общих фраз, только конкретика.")
-    if tip:
-        text += f"\n\n**LLM совет:** {tip}"
-    return text
+    
+    # Краткая статистика
+    if len(alerts) > 1:
+        sev_counts = {}
+        for s in severities:
+            sev_counts[s] = sev_counts.get(s, 0) + 1
+        stats = " | ".join([f"{get_severity_emoji(s)} {s}:{c}" for s, c in sev_counts.items()])
+        text += f"\n\n📊 **Summary:** {stats}"
+    
+    # LLM рекомендация
+    if USE_LLM and len(alerts) > 0:
+        # Создаем контекст для LLM
+        context = []
+        for a in alerts[:3]:  # Берем первые 3 алерта
+            labels = a.get("labels", {})
+            ann = a.get("annotations", {})
+            context.append(f"{labels.get('alertname', 'Alert')}: {ann.get('summary', '')}")
+        
+        prompt = f"Алерты мониторинга: {'; '.join(context)}. Дай 1-2 практических шага диагностики (макс 150 символов)."
+        tip = llm_tip(prompt, max_tokens=80)
+        if tip:
+            text += f"\n\n🧠 **Магия кристалла:** {tip}"
+    
+    # Определяем цвет по наивысшей критичности
+    priority = ["critical", "high", "warning", "info", "low"]
+    highest_sev = "info"
+    for sev in priority:
+        if sev in severities:
+            highest_sev = sev
+            break
+    
+    color = get_mattermost_color(highest_sev)
+    return text, color
 
 # ---------------------------
 # FastAPI приложение
@@ -248,8 +322,8 @@ async def test_endpoint(req: Request):
             }
         ]
     }
-    text = fmt_batch_message(pkg["alerts"])
-    ok = mm_post(text)
+    text, color = fmt_batch_message(pkg["alerts"])
+    ok = mm_post(text, color)
     return {"ok": ok, "sent_text": text}
 
 @app.post("/alertmanager")
@@ -263,8 +337,8 @@ async def alertmanager_webhook(req: Request):
     if not isinstance(alerts, list):
         return JSONResponse({"error": "no alerts[]"}, status_code=400)
 
-    text = fmt_batch_message(alerts)
-    ok = mm_post(text)
+    text, color = fmt_batch_message(alerts)
+    ok = mm_post(text, color)
     return {"ok": ok}
 
 # ---------------------------
@@ -297,11 +371,11 @@ def rabbit_consume_loop():
                 try:
                     j = json.loads(body.decode("utf-8"))
                     if "alerts" in j and isinstance(j["alerts"], list):
-                        text = fmt_batch_message(j["alerts"])
+                        text, color = fmt_batch_message(j["alerts"])
                     else:
                         # обернём одиночный в пакет
-                        text = fmt_batch_message([j])
-                    mm_post(text)
+                        text, color = fmt_batch_message([j])
+                    mm_post(text, color)
                 except Exception as e:
                     print(f"[RABBIT] msg err: {e}")
                 finally:
