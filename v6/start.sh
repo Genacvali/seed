@@ -99,10 +99,15 @@ if [[ "$RABBIT_ENABLE" == "1" ]]; then
   export RABBIT_HOST="${RABBIT_HOST:-localhost}"
   export RABBIT_PORT="${RABBIT_PORT:-5672}"
   export RABBIT_SSL="${RABBIT_SSL:-0}"
-  prompt_secret RABBIT_USER "RabbitMQ user [seed]"; [[ -z "${RABBIT_USER}" ]] && RABBIT_USER="seed"
-  prompt_secret RABBIT_PASS "RabbitMQ password" silent
+  export RABBIT_USER="${RABBIT_USER:-seed}"
+  export RABBIT_PASS="${RABBIT_PASS:-seedpass}"
   export RABBIT_VHOST="${RABBIT_VHOST:-/}"
   export RABBIT_QUEUE="${RABBIT_QUEUE:-seed-inbox}"
+  
+  # Prompt только если не заданы
+  [[ -z "${RABBIT_USER}" ]] && prompt_secret RABBIT_USER "RabbitMQ user [seed]"
+  [[ -z "${RABBIT_PASS}" ]] && prompt_secret RABBIT_PASS "RabbitMQ password" silent
+  
   echo "   RabbitMQ: ✅ ${RABBIT_USER}@${RABBIT_HOST}:${RABBIT_PORT}${RABBIT_VHOST} q=${RABBIT_QUEUE}"
 else
   echo "   RabbitMQ: ⏸️  disabled"
@@ -111,24 +116,26 @@ fi
 # ---------- LLM (optional) ----------
 export USE_LLM="${USE_LLM:-0}"
 if [[ "$USE_LLM" == "1" ]]; then
-  prompt_secret GIGACHAT_CLIENT_ID "GigaChat CLIENT_ID"
-  prompt_secret GIGACHAT_CLIENT_SECRET "GigaChat CLIENT_SECRET" silent
   export GIGACHAT_SCOPE="${GIGACHAT_SCOPE:-GIGACHAT_API_PERS}"
   export GIGACHAT_OAUTH_URL="${GIGACHAT_OAUTH_URL:-https://ngw.devices.sberbank.ru:9443/api/v2/oauth}"
   export GIGACHAT_API_URL="${GIGACHAT_API_URL:-https://gigachat.devices.sberbank.ru/api/v1/chat/completions}"
   export GIGACHAT_MODEL="${GIGACHAT_MODEL:-GigaChat-2}"
   export GIGACHAT_VERIFY_SSL="${GIGACHAT_VERIFY_SSL:-0}"
   export GIGACHAT_TOKEN_CACHE="${GIGACHAT_TOKEN_CACHE:-/tmp/gigachat_token.json}"
+  
+  # Prompt только если не заданы
+  [[ -z "${GIGACHAT_CLIENT_ID}" ]] && prompt_secret GIGACHAT_CLIENT_ID "GigaChat CLIENT_ID"
+  [[ -z "${GIGACHAT_CLIENT_SECRET}" ]] && prompt_secret GIGACHAT_CLIENT_SECRET "GigaChat CLIENT_SECRET" silent
+  
   echo "   LLM: ✅ GigaChat (${GIGACHAT_MODEL})"
 else
   echo "   LLM: ⏸️  disabled"
 fi
 
 # ---------- Mattermost ----------
-if [[ -z "${MM_WEBHOOK:-}" ]]; then
-  prompt_secret MM_WEBHOOK "Mattermost webhook URL (empty to skip)"
-fi
 export MM_VERIFY_SSL="${MM_VERIFY_SSL:-0}"
+[[ -z "${MM_WEBHOOK:-}" ]] && prompt_secret MM_WEBHOOK "Mattermost webhook URL (empty to skip)"
+
 echo "   Mattermost: $( [[ -n "${MM_WEBHOOK:-}" ]] && echo "✅ webhook configured" || echo "❌ not configured" )"
 
 # ---------- deps check ----------
