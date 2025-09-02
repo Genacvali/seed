@@ -349,6 +349,18 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 Убедитесь, что в `configs/seed.env` настроен:
 ```bash
 PROM_URL=http://p-infra-alertmanager-adv-msk01:9090
+PROM_VERIFY_SSL=0
+PROM_TIMEOUT=10
+```
+
+### Диагностика проблем с URL:
+Судя по логу `"https://prome"` - URL обрезается. Проверьте:
+```bash
+# В SEED Agent логах должно быть:
+grep "PROM_URL" v6/logs/agent.log
+
+# Проверьте переменные окружения:
+python3 -c "import os; print('PROM_URL:', os.getenv('PROM_URL'))"
 ```
 
 ### 🎯 Схема реального тестирования:
@@ -358,9 +370,37 @@ PROM_URL=http://p-infra-alertmanager-adv-msk01:9090
 3. Prometheus → возвращает метрики с p-smi-mng-adv02:9100 (node-exporter)
 ```
 
+### Отладка подключения к Prometheus
+```bash
+# Сначала проверьте доступность Prometheus API
+curl -s "http://p-infra-alertmanager-adv-msk01:9090/api/v1/query?query=up" | jq .
+
+# Проверьте какие instance доступны
+curl -s "http://p-infra-alertmanager-adv-msk01:9090/api/v1/label/instance/values" | jq .
+```
+
 ### Тест с реальным Prometheus (обогащенные алерты)
 ```bash
-# Алерт с высоким CPU на реальном сервере - будет обогащен метриками из Prometheus
+# Используйте ТОЧНО тот instance, который есть в Prometheus
+# Сначала узнайте какие есть, потом замените в команде ниже
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "HighCPUUsage", 
+        "instance": "p-smi-mng-adv02:9100",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "High CPU usage on p-smi-mng-adv02",
+        "description": "CPU usage is above 80% for more than 5 minutes"
+      }
+    }]
+  }'
+
+# Альтернатива - используйте хост который точно есть в Prometheus
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
@@ -368,11 +408,11 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
       "status": "firing",
       "labels": {
         "alertname": "HighCPUUsage",
-        "instance": "p-smi-mng-adv02:9100",
+        "instance": "p-smi-mng-sc-msk07:9100", 
         "severity": "critical"
       },
       "annotations": {
-        "summary": "High CPU usage on p-smi-mng-adv02",
+        "summary": "High CPU usage on p-smi-mng-sc-msk07",
         "description": "CPU usage is above 80% for more than 5 minutes"
       }
     }]
