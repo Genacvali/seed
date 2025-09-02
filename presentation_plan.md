@@ -253,7 +253,7 @@ Alertmanager говорит: "На сервере prod-db01 мало места 
 ## Слайд 8: Живая демонстрация
 ### Сценарий 1: Простой алерт
 ```bash
-curl -X POST localhost:8080/alertmanager -d '{
+curl -X POST p-dba-seed-adv-msk01:8080/alertmanager -d '{
   "alerts": [{"labels": {"alertname": "DiskSpaceLow"}, ...}]
 }'
 ```
@@ -311,7 +311,7 @@ curl -X POST localhost:8080/alertmanager -d '{
 ## Демо-сценарии для каждого слайда:
 
 **Слайд 8 - Живые команды:**
-1. Health check: `curl localhost:8080/health | jq`
+1. Health check: `curl p-dba-seed-adv-msk01:8080/health | jq`
 2. Simple alert: Disk space warning  
 3. Complex incident: DB performance degradation
 4. Plugin showcase: MongoDB collection scan

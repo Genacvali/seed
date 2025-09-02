@@ -5,10 +5,10 @@
 ### Проверка здоровья агента
 ```bash
 # Health check
-curl -s http://localhost:8080/health | jq .
+curl -s http://p-dba-seed-adv-msk01:8080/health | jq .
 
 # Простой тест уведомлений
-curl -X POST http://localhost:8080/test
+curl -X POST http://p-dba-seed-adv-msk01:8080/test
 ```
 
 ## 2. Демонстрация плагинов
@@ -17,7 +17,7 @@ curl -X POST http://localhost:8080/test
 
 ```bash
 # Алерт низкого места на диске
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -36,7 +36,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Алерт высокой нагрузки CPU
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -54,7 +54,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Алерт высокого потребления памяти
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -76,7 +76,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # Медленные запросы PostgreSQL
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -95,7 +95,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Проблемы с подключениями к PostgreSQL
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -118,7 +118,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # MongoDB медленные запросы
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -137,7 +137,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # MongoDB Collection Scan
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -160,7 +160,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # Сервис недоступен
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -179,7 +179,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Проблемы с сервисом
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -204,7 +204,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # Комплексный инцидент: проблемы с базой данных и приложением  
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [
@@ -249,7 +249,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Инцидент с сетевыми проблемами
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [
@@ -285,7 +285,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # Critical alerts
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -303,7 +303,7 @@ curl -X POST http://localhost:8080/alertmanager \
   }'
 
 # Info level
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -325,7 +325,7 @@ curl -X POST http://localhost:8080/alertmanager \
 
 ```bash
 # Resolved alert
-curl -X POST http://localhost:8080/alertmanager \
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
@@ -368,5 +368,5 @@ PROM_URL=http://your-prometheus:9090
 tail -f v6/logs/agent.log
 
 # Статус здоровья
-watch -n 2 "curl -s http://localhost:8080/health | jq ."
+watch -n 2 "curl -s http://p-dba-seed-adv-msk01:8080/health | jq ."
 ```
