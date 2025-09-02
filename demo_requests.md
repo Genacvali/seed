@@ -348,12 +348,19 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 ### Предварительная настройка
 Убедитесь, что в `configs/seed.env` настроен:
 ```bash
-PROM_URL=http://p-smi-mng-adv02:9090
+PROM_URL=http://p-infra-alertmanager-adv-msk01:9090
+```
+
+### 🎯 Схема реального тестирования:
+```
+1. curl → p-dba-seed-adv-msk01:8080 (SEED Agent)
+2. SEED Agent → p-infra-alertmanager-adv-msk01:9090 (Prometheus API) 
+3. Prometheus → возвращает метрики с p-smi-mng-adv02:9100 (node-exporter)
 ```
 
 ### Тест с реальным Prometheus (обогащенные алерты)
 ```bash
-# Алерт с высоким CPU - будет обогащен реальными метриками
+# Алерт с высоким CPU на реальном сервере - будет обогащен метриками из Prometheus
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
@@ -365,13 +372,13 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
         "severity": "critical"
       },
       "annotations": {
-        "summary": "High CPU usage on monitoring server",
+        "summary": "High CPU usage on p-smi-mng-adv02",
         "description": "CPU usage is above 80% for more than 5 minutes"
       }
     }]
   }'
 
-# Алерт с проблемами памяти - покажет реальные метрики
+# Алерт с проблемами памяти на том же сервере - покажет реальные метрики
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
@@ -383,8 +390,28 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
         "severity": "warning"
       },
       "annotations": {
-        "summary": "Memory usage approaching limits on monitoring server",
+        "summary": "Memory usage approaching limits on p-smi-mng-adv02",
         "description": "Memory usage exceeded 75% threshold"
+      }
+    }]
+  }'
+
+# Алерт с диском - тоже с реального сервера
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "DiskSpaceLow",
+        "instance": "p-smi-mng-adv02:9100",
+        "device": "/dev/sda1",
+        "mountpoint": "/",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Disk space running low on p-smi-mng-adv02",
+        "description": "Root filesystem is running out of space"
       }
     }]
   }'
@@ -417,7 +444,7 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 
 1. **Последовательность**: Начните с простых single alerts, затем покажите complex scenarios
 2. **LLM**: Для получения LLM рекомендаций установите `USE_LLM=1` в configs/seed.env
-3. **Prometheus**: Настройте `PROM_URL=http://p-smi-mng-adv02:9090` для реального обогащения метриками
+3. **Prometheus**: Настройте `PROM_URL=http://p-infra-alertmanager-adv-msk01:9090` для реального обогащения метриками
 4. **Mattermost**: Настройте MM_WEBHOOK для визуализации форматированных уведомлений
 5. **Плагины**: Каждый тип алерта покажет разные плагины в действии
 
