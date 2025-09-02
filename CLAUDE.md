@@ -161,3 +161,30 @@ curl -X POST http://localhost:8080/test
 - **Prometheus timeouts**: Verify `PROMETHEUS_URL` and network connectivity
 - **Plugin failures**: Check plugin-specific logs and dependencies
 - **Mattermost delivery fails**: Verify `MM_WEBHOOK` URL and SSL settings
+
+## Test Scripts and Validation
+
+### Testing Commands
+```bash
+# Basic functionality tests
+python3 test_llm.py          # Full LLM integration test
+python3 test_prometheus.py   # Prometheus integration test  
+python3 test_realistic.py    # Test with realistic metrics
+
+# Plugin testing (requires alerts to be sent)
+curl -X POST http://localhost:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{"alerts":[{"labels":{"alertname":"DiskSpaceLow","instance":"test-host","severity":"warning"},"annotations":{"summary":"Low disk space"},"status":"firing"}]}'
+```
+
+### Configuration Validation
+```bash
+# Validate environment configuration
+python3 -c "from core.config import *; print('Config loaded successfully')"
+
+# Check plugin system
+python3 -c "from plugin_router import plugin_router; print(plugin_router.get_plugin_info())"
+
+# Verify Prometheus client
+python3 -c "import prom; print('Prometheus client available')"
+```
