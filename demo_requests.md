@@ -348,7 +348,7 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 ### Предварительная настройка
 Убедитесь, что в `configs/seed.env` настроен:
 ```bash
-PROM_URL=http://prometheus.sberdevices.ru
+PROM_URL=https://prometheus.sberdevices.ru
 PROM_VERIFY_SSL=1
 PROM_TIMEOUT=10
 ```
@@ -370,13 +370,16 @@ python3 -c "import os; print('PROM_URL:', os.getenv('PROM_URL'))"
 3. Prometheus → возвращает метрики с p-smi-mng-sc-msk07:9100/9216 (exporters)
 ```
 
-### Отладка подключения к Prometheus
+### Отладка подключения к Prometheus (ИСПРАВЛЕНО - нужен HTTPS)
 ```bash
 # Сначала проверьте доступность Prometheus API
-curl -s "http://prometheus.sberdevices.ru/api/v1/query?query=up" | jq .
+curl -s "https://prometheus.sberdevices.ru/api/v1/query?query=up" | jq .
 
 # Проверьте какие instance доступны для p-smi-mng-sc-msk07
-curl -s "http://prometheus.sberdevices.ru/api/v1/label/instance/values" | jq . | grep "p-smi-mng-sc-msk07"
+curl -s "https://prometheus.sberdevices.ru/api/v1/label/instance/values" | jq . | grep "p-smi-mng-sc-msk07"
+
+# Найдите точный instance для вашего хоста
+curl -s "https://prometheus.sberdevices.ru/api/v1/query?query=up{instance=~'.*p-smi-mng-sc-msk07.*'}" | jq '.data.result[].metric.instance'
 
 # Проверьте метрики напрямую с хоста:
 curl -s "http://p-smi-mng-sc-msk07:9100/metrics" | head -20
