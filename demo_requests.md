@@ -348,8 +348,8 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 ### Предварительная настройка
 Убедитесь, что в `configs/seed.env` настроен:
 ```bash
-PROM_URL=http://p-infra-alertmanager-adv-msk01:9090
-PROM_VERIFY_SSL=0
+PROM_URL=http://prometheus.sberdevices.ru
+PROM_VERIFY_SSL=1
 PROM_TIMEOUT=10
 ```
 
@@ -366,17 +366,21 @@ python3 -c "import os; print('PROM_URL:', os.getenv('PROM_URL'))"
 ### 🎯 Схема реального тестирования:
 ```
 1. curl → p-dba-seed-adv-msk01:8080 (SEED Agent)
-2. SEED Agent → p-infra-alertmanager-adv-msk01:9090 (Prometheus API) 
-3. Prometheus → возвращает метрики с p-smi-mng-adv02:9100 (node-exporter)
+2. SEED Agent → prometheus.sberdevices.ru (Prometheus API) 
+3. Prometheus → возвращает метрики с p-smi-mng-sc-msk07:9100/9216 (exporters)
 ```
 
 ### Отладка подключения к Prometheus
 ```bash
 # Сначала проверьте доступность Prometheus API
-curl -s "http://p-infra-alertmanager-adv-msk01:9090/api/v1/query?query=up" | jq .
+curl -s "http://prometheus.sberdevices.ru/api/v1/query?query=up" | jq .
 
-# Проверьте какие instance доступны
-curl -s "http://p-infra-alertmanager-adv-msk01:9090/api/v1/label/instance/values" | jq .
+# Проверьте какие instance доступны для p-smi-mng-sc-msk07
+curl -s "http://prometheus.sberdevices.ru/api/v1/label/instance/values" | jq . | grep "p-smi-mng-sc-msk07"
+
+# Проверьте метрики напрямую с хоста:
+curl -s "http://p-smi-mng-sc-msk07:9100/metrics" | head -20
+curl -s "http://p-smi-mng-sc-msk07:9216/metrics" | head -20
 ```
 
 ### Тест с реальным Prometheus (обогащенные алерты)
