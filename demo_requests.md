@@ -348,7 +348,67 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
 ### Предварительная настройка
 Убедитесь, что в `configs/seed.env` настроен:
 ```bash
-PROM_URL=http://your-prometheus:9090
+PROM_URL=http://p-smi-mng-adv02:9090
+```
+
+### Тест с реальным Prometheus (обогащенные алерты)
+```bash
+# Алерт с высоким CPU - будет обогащен реальными метриками
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "HighCPUUsage",
+        "instance": "p-smi-mng-adv02:9100",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "High CPU usage on monitoring server",
+        "description": "CPU usage is above 80% for more than 5 minutes"
+      }
+    }]
+  }'
+
+# Алерт с проблемами памяти - покажет реальные метрики
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "HighMemoryUsage",
+        "instance": "p-smi-mng-adv02:9100",
+        "severity": "warning"
+      },
+      "annotations": {
+        "summary": "Memory usage approaching limits on monitoring server",
+        "description": "Memory usage exceeded 75% threshold"
+      }
+    }]
+  }'
+```
+
+### Тест без Prometheus (базовое форматирование)
+```bash
+# Для демонстрации работы без обогащения - используйте несуществующий хост
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing", 
+      "labels": {
+        "alertname": "HighCPUUsage",
+        "instance": "fake-server.example.com",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "High CPU usage on fake server (no metrics available)",
+        "description": "This will show basic formatting without Prometheus enrichment"
+      }
+    }]
+  }'
 ```
 
 Алерты будут автоматически обогащаться метриками из Prometheus при их обработке.
@@ -357,9 +417,21 @@ PROM_URL=http://your-prometheus:9090
 
 1. **Последовательность**: Начните с простых single alerts, затем покажите complex scenarios
 2. **LLM**: Для получения LLM рекомендаций установите `USE_LLM=1` в configs/seed.env
-3. **Prometheus**: Подключите реальный Prometheus для демонстрации обогащения метриками
+3. **Prometheus**: Настройте `PROM_URL=http://p-smi-mng-adv02:9090` для реального обогащения метриками
 4. **Mattermost**: Настройте MM_WEBHOOK для визуализации форматированных уведомлений
 5. **Плагины**: Каждый тип алерта покажет разные плагины в действии
+
+## Демо-сценарий "Два мира":
+
+### 🟢 С Prometheus (богатые алерты):
+- Используйте `instance: "p-smi-mng-adv02:9100"` 
+- Получите реальные метрики CPU, память, диск
+- Покажите обогащенные уведомления с трендами
+
+### 🟡 Без Prometheus (базовые алерты):
+- Используйте `instance: "fake-server.example.com"`
+- Покажите как система работает без метрик
+- Демонстрируйте fallback поведение
 
 ## Мониторинг демо
 
