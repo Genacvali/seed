@@ -7,19 +7,24 @@ flowchart TD
     A["Servers<br/>Services, DB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
     B --> C["Alertmanager<br/>Alert Routing"]
     C --> D["SEED Agent v6.1<br/>Plugin System + AI"]
-    D --> E["Mattermost<br/>"]
     
-    D -.->|"RabbitMQ Queue"| B
+    F["RabbitMQ<br/>Optional Queue"] --> D
+    
+    D --> E["Mattermost<br/>FF-styled notifications"]
+    
+    D -.->|"Queries metrics<br/>for enrichment"| B
     
     classDef server fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef monitor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px  
     classDef seed fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
     classDef output fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef rabbit fill:#ffebee,stroke:#d32f2f,stroke-width:2px
     
     class A server
     class B,C monitor
     class D seed
     class E output
+    class F rabbit
 ```
 
 ## ⚔️ Alert Processing Flow (WORKING)
