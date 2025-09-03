@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A["Servers<br/>PostgreSQL, MongoDB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
+    A["Servers<br/>Services, DB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
     B --> C["Alertmanager<br/>Alert Routing"]
     C --> D["SEED Agent v6.1<br/>Plugin System + AI"]
     D --> E["Mattermost<br/>"]
