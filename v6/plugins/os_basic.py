@@ -11,11 +11,8 @@ def run(alert: dict, prom, params: dict) -> dict:
     inst = labels.get("instance", "unknown")
     alertname = labels.get("alertname", "SystemAlert")
     
-    # Нормализуем instance для node_exporter
-    if inst and ":" not in inst:
-        inst_with_port = f"{inst}:9100"
-    else:
-        inst_with_port = inst
+    # Используем только hostname без порта для OS метрик
+    inst_with_port = inst.split(":")[0]
     
     lines = []
     lookback = params.get("lookback", "15m")
@@ -31,16 +28,34 @@ def run(alert: dict, prom, params: dict) -> dict:
             # CPU usage
             cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst_with_port}",mode="idle"}}[5m])))'
             cpu = prom.query_value(cpu_expr)
+            
+            # Telegraf fallback if node_exporter not available
+            if not isinstance(cpu, (int, float)):
+                cpu_expr = f'100 - cpu_usage_idle{{instance="{inst}",port="9216"}}'
+                cpu = prom.query_value(cpu_expr)
+            
             lines.append(f"🔥 CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "🔥 CPU: n/a")
             
             # Memory usage
             mem_expr = f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst_with_port}"}} / node_memory_MemTotal_bytes{{instance="{inst_with_port}"}}))'
             mem = prom.query_value(mem_expr)
+            
+            # Telegraf fallback if node_exporter not available
+            if not isinstance(mem, (int, float)):
+                mem_expr = f'mem_used_percent{{instance="{inst}",port="9216"}}'
+                mem = prom.query_value(mem_expr)
+            
             lines.append(f"💾 Memory: {mem:.1f}%" if isinstance(mem, (int, float)) else "💾 Memory: n/a")
             
             # Load average
             load_expr = f'node_load1{{instance="{inst_with_port}"}}'
             load = prom.query_value(load_expr)
+            
+            # Telegraf fallback if node_exporter not available
+            if not isinstance(load, (int, float)):
+                load_expr = f'system_load1{{instance="{inst}",port="9216"}}'
+                load = prom.query_value(load_expr)
+            
             lines.append(f"⚖️ Load (1m): {load:.2f}" if isinstance(load, (int, float)) else "⚖️ Load: n/a")
             
         except Exception as e:
