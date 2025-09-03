@@ -14,7 +14,7 @@ flowchart TD
     D --> E["Mattermost<br/>FF-styled notifications"]
     
     %% SEED queries Prometheus for current metrics to enrich alerts
-    D -.->|"GET current CPU/MEM/Disk<br/>for FF emojis"| B
+    D -.->|"GET current CPU/MEM/Disk<br/>"| B
     
     classDef server fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef monitor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px  
