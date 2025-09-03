@@ -1,67 +1,111 @@
 # 🌌 S.E.E.D. Agent v6.1 - Mermaid Architecture Diagram
 
-## 🎮 Full Architecture Flow
+## 🚀 Simple Overview (WORKING)
+
+```mermaid
+flowchart TD
+    A["Servers<br/>PostgreSQL, MongoDB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
+    B --> C["Alertmanager<br/>Alert Routing"]
+    C --> D["SEED Agent v6.1<br/>Plugin System + AI"]
+    D --> E["Mattermost<br/>Final Fantasy styled<br/>notifications"]
+    
+    D -.->|"Queries metrics"| B
+    
+    classDef server fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef monitor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px  
+    classDef seed fill:#e8f5e8,stroke:#2e7d32,stroke-width:3px
+    classDef output fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    
+    class A server
+    class B,C monitor
+    class D seed
+    class E output
+```
+
+## ⚔️ Alert Processing Flow (WORKING)
+
+```mermaid
+flowchart LR
+    A["Alert Received<br/>PostgresSlowQuery"] --> B["Plugin Router<br/>Route to pg_slow"]
+    B --> C["Enrichment<br/>Query Prometheus<br/>for current metrics"]
+    C --> D["Final Fantasy Styling<br/>Apply CPU/MEM/DISK emojis"]
+    D --> E["AI Analysis<br/>GigaChat recommendations"]
+    E --> F["Format Message<br/>Beautiful output"]
+    F --> G["Send to Mattermost<br/>Channel notification"]
+    
+    classDef process fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    classDef styling fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef ai fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    classDef output fill:#e8f5e8,stroke:#2e7d32,stroke-width:2px
+    
+    class A,B,C process
+    class D styling
+    class E ai
+    class F,G output
+```
+
+## 🎮 Detailed Architecture Flow
 
 ```mermaid
 graph TD
     %% Infrastructure Layer
-    subgraph INFRA[🖥️ Infrastructure Layer]
-        PG[🐘 PostgreSQL<br/>prod-db01]
-        MONGO[🍃 MongoDB<br/>prod-mongo01] 
-        LINUX[🖥️ Linux Servers<br/>nt-smi-mng-sc-msk03]
+    subgraph INFRA["Infrastructure Layer"]
+        PG["PostgreSQL<br/>prod-db01"]
+        MONGO["MongoDB<br/>prod-mongo01"] 
+        LINUX["Linux Servers<br/>nt-smi-mng-sc-msk03"]
         
-        NODE[📊 node_exporter:9100]
-        TELE[📊 telegraf:9216]
-        PGEXP[📊 postgres_exporter]
-        MONGOEXP[📊 mongodb_exporter]
+        NODE["node_exporter:9100"]
+        TELE["telegraf:9216"]
+        PGEXP["postgres_exporter"]
+        MONGOEXP["mongodb_exporter"]
     end
     
     %% Monitoring Layer  
-    subgraph MON[📊 Monitoring Layer]
-        PROM[🔍 Prometheus<br/>Metrics Storage<br/>+ Alert Rules]
+    subgraph MON["Monitoring Layer"]
+        PROM["Prometheus<br/>Metrics Storage<br/>+ Alert Rules"]
     end
     
     %% Alerting Layer
-    subgraph ALERT[🚨 Alerting Layer] 
-        AM[📢 Alertmanager<br/>Alert Routing<br/>& Grouping]
+    subgraph ALERT["Alerting Layer"]
+        AM["Alertmanager<br/>Alert Routing<br/>& Grouping"]
     end
     
     %% SEED Agent Core
-    subgraph SEED[🌌 S.E.E.D. Agent v6.1]
+    subgraph SEED["S.E.E.D. Agent v6.1"]
         %% Input Layer
-        subgraph INPUT[📥 Input Layer]
-            HTTP[HTTP Webhook<br/>:8080/alertmanager]
-            RABBIT[RabbitMQ Consumer<br/>Optional]
+        subgraph INPUT["Input Layer"]
+            HTTP["HTTP Webhook<br/>:8080/alertmanager"]
+            RABBIT["RabbitMQ Consumer<br/>Optional"]
         end
         
         %% Routing Layer
-        ROUTER[🧭 Plugin Router<br/>configs/alerts.yaml<br/>Maps alerts → plugins]
+        ROUTER["Plugin Router<br/>configs/alerts.yaml<br/>Maps alerts to plugins"]
         
         %% Processing Layer
-        subgraph PLUGINS[🔧 Plugin System]
-            OS[🖥️ os_basic<br/>CPU/Memory/Disk/Load]
-            PG_PLUGIN[🐘 pg_slow<br/>PostgreSQL Analysis]
-            MONGO_PLUGIN[🍃 mongo_hot<br/>MongoDB Analysis] 
-            HOST[🌐 host_inventory<br/>Network Services]
-            ECHO[📢 echo<br/>Fallback Handler]
+        subgraph PLUGINS["Plugin System"]
+            OS["os_basic<br/>CPU/Memory/Disk/Load"]
+            PG_PLUGIN["pg_slow<br/>PostgreSQL Analysis"]
+            MONGO_PLUGIN["mongo_hot<br/>MongoDB Analysis"] 
+            HOST["host_inventory<br/>Network Services"]
+            ECHO["echo<br/>Fallback Handler"]
         end
         
         %% Enrichment Layer
-        ENRICH[💎 Enrichment Layer<br/>enrich.py<br/>Prometheus Queries<br/>+ Telegraf Fallback]
+        ENRICH["Enrichment Layer<br/>enrich.py<br/>Prometheus Queries<br/>+ Telegraf Fallback"]
         
         %% Styling Layer  
-        STYLE[🎮 Final Fantasy Styling<br/>⚔️ CPU: ✨→⚔️→🗡️→💎🔥<br/>🧙‍♂️ MEM: 🌟→🛡️→🏰→💎🔥<br/>⚙️ DISK: ✨→🛡️→⚔️→💎🔥]
+        STYLE["Final Fantasy Styling<br/>CPU/MEM/DISK emojis<br/>based on usage levels"]
         
         %% AI Layer
-        AI[🧠 GigaChat LLM<br/>Магия кристалла<br/>Context Analysis<br/>Recommendations]
+        AI["GigaChat LLM<br/>AI Analysis<br/>Context + Recommendations"]
         
         %% Formatting Layer
-        FORMAT[📝 Message Formatter<br/>Structured Output<br/>No Metric Duplication]
+        FORMAT["Message Formatter<br/>Structured Output<br/>No Metric Duplication"]
     end
     
     %% Delivery Layer
-    subgraph DELIVERY[💬 Delivery Layer]
-        MM[📱 Mattermost<br/>#alerts-seed<br/>Beautiful FF-styled<br/>notifications]
+    subgraph DELIVERY["Delivery Layer"]
+        MM["Mattermost<br/>#alerts-seed<br/>Formatted notifications"]
     end
 
     %% Data Flow Connections
