@@ -11,7 +11,7 @@ flowchart TD
     C -->|"HTTP Webhook<br/>:8080/alertmanager"| D["SEED Agent v6.1<br/>Plugin System + AI"]
     F["RabbitMQ<br/>Message Queue"] -->|"AMQP Consumer<br/>Optional"| D
     
-    D --> E["Mattermost<br/>FF-styled notifications"]
+    D --> E["Mattermost<br/>"]
     
     %% SEED queries Prometheus for current metrics to enrich alerts
     D -.->|"GET current CPU/MEM/Disk<br/>"| B
