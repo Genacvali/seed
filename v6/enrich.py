@@ -19,12 +19,8 @@ def enrich_alert(alert: dict) -> dict:
     inst   = labels.get("instance") or labels.get("host")
     mount  = labels.get("mountpoint") or labels.get("path")
     
-    # Нормализуем instance - добавляем порт если нет
-    if inst and ":" not in inst:
-        # Для node_exporter обычно порт 9100
-        inst_with_port = f"{inst}:9100"
-    else:
-        inst_with_port = inst
+    # Используем только hostname без порта для метрик
+    inst_with_port = inst.split(":")[0] if inst else None
     end    = time.time()
     start  = end - LOOKBACK
 
@@ -46,6 +42,16 @@ def enrich_alert(alert: dict) -> dict:
         try:
             enr["cpu_now"] = last_value(query(cpu_expr))
             enr["mem_now"] = last_value(query(mem_expr))
+            
+            # Telegraf fallback if node_exporter metrics not available
+            if not isinstance(enr.get("cpu_now"), (int, float)):
+                cpu_telegraf_expr = f'100 - cpu_usage_idle{{instance="{inst}",port="9216"}}'
+                enr["cpu_now"] = last_value(query(cpu_telegraf_expr))
+            
+            if not isinstance(enr.get("mem_now"), (int, float)):
+                mem_telegraf_expr = f'mem_used_percent{{instance="{inst}",port="9216"}}'
+                enr["mem_now"] = last_value(query(mem_telegraf_expr))
+                
         except Exception:
             pass
 
