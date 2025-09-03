@@ -231,39 +231,56 @@ def clean_llm_response(text: str) -> str:
     # Убираем лишние ключевые слова
     text = re.sub(r'\b(sql|bash|plpgsql)\b', '', text, flags=re.IGNORECASE)
     
-    # Исправляем переносы строк и форматирование
-    text = re.sub(r'([а-яА-Я])\s*\n\s*([а-яА-Я])', r'\1 \2', text)  # Склеиваем разорванные слова
-    text = re.sub(r'\s+', ' ', text)  # Убираем лишние пробелы
+    # Нормализуем пробелы (но сохраняем структуру предложений)
+    text = re.sub(r'\s+', ' ', text)
+    text = text.strip()
     
-    # Заменяем маркеры секций
-    text = re.sub(r'\*\*(Диагностика|Рекомендации):\*\*', r'\n\n**\1:**\n', text)
-    text = re.sub(r'(Диагностика|Рекомендации):\*\*', r'\n\n**\1:**\n', text)
-    text = re.sub(r'\b(Диагностика|Рекомендации):', r'\n\n**\1:**\n', text)
+    # Ищем основные секции и разделяем их
+    # Обработка "Диагностика:" или "Шаги для решения:" или "Рекомендации:"
+    text = re.sub(r'([.!?])\s*(Диагностика|Рекомендации|Шаги\s+для\s+решения):', r'\1\n\n**\2:**\n• ', text, flags=re.IGNORECASE)
+    text = re.sub(r'^(Диагностика|Рекомендации|Шаги\s+для\s+решения):', r'**\1:**\n• ', text, flags=re.IGNORECASE)
     
-    # Нумерованные списки в маркированные
-    text = re.sub(r'^\s*\d+\.\s*', '• ', text, flags=re.MULTILINE)
+    # Разделение по нумерованным пунктам (1., 2., 3.)
+    text = re.sub(r'([.!?])\s*(\d+\.)\s*', r'\1\n• ', text)
+    text = re.sub(r'^(\d+\.)\s*', r'• ', text, flags=re.MULTILINE)
     
-    # Подпункты с отступом
-    text = re.sub(r'^\s*•\s*([А-Я][а-я\s]+:)\s*', r'\n• **\1**\n  ', text, flags=re.MULTILINE)
+    # Разделение длинных предложений с перечислениями
+    text = re.sub(r'([а-я])\.\s*(\d+\.)', r'\1.\n• ', text)
+    text = re.sub(r'([а-я])\s*(\d+\.)', r'\1.\n• ', text)
     
-    # Чистим лишние пробелы и пустые строки
+    # Обработка подпунктов с заголовками 
+    text = re.sub(r'([.!?])\s*([А-Я][а-я\s]+:)\s*([А-Я])', r'\1\n\n• **\2**\n  \3', text)
+    
+    # Разбиваем очень длинные строки (более 120 символов) по смыслу
     lines = []
     for line in text.split('\n'):
         line = line.strip()
-        if line and line != '•':
+        if len(line) > 120 and not line.startswith('•'):
+            # Пытаемся разбить по запятым или точкам с запятой
+            parts = re.split(r'([,;])\s*(?=[А-Я])', line)
+            current_line = ''
+            for i in range(0, len(parts), 2):
+                part = parts[i]
+                if i + 1 < len(parts):
+                    part += parts[i + 1]  # добавляем запятую/точку с запятой
+                
+                if len(current_line + part) > 100 and current_line:
+                    lines.append(current_line.strip())
+                    current_line = '• ' + part.strip() if not part.strip().startswith('•') else part.strip()
+                else:
+                    current_line += part
+            
+            if current_line.strip():
+                lines.append(current_line.strip())
+        else:
             lines.append(line)
     
-    # Убираем дублирующиеся пустые строки
+    # Убираем пустые строки и лишние маркеры
     result_lines = []
-    prev_empty = False
     for line in lines:
-        if line == '':
-            if not prev_empty:
-                result_lines.append(line)
-            prev_empty = True
-        else:
+        line = line.strip()
+        if line and line != '•' and line != '**:**':
             result_lines.append(line)
-            prev_empty = False
     
     return '\n'.join(result_lines).strip()
 
