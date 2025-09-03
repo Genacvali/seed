@@ -22,41 +22,8 @@ def run(alert: dict, prom, params: dict) -> dict:
     show_swap = params.get("show_swap", False)
     show_host_metrics = params.get("show_host_metrics", True)
     
-    # === Additional Disk Usage (only /data since / is in enrichment) ===
-    if "/data" not in show_paths:
-        show_paths = ["/data"]  # Force /data check
-        
-    for path in show_paths:
-        if path != "/":  # Skip root, it's already in enrichment summary
-            try:
-                disk_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}} 
-                               - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}})
-                               / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}}'''
-                disk = prom.query_value(disk_expr.replace('\n', '').strip())
-                if isinstance(disk, (int, float)):
-                    icon = "🔴" if disk > 90 else "🟡" if disk > 80 else "🟢"
-                    lines.append(f"{icon} Disk {path}: {disk:.1f}%")
-            except Exception:
-                lines.append(f"💽 Disk {path}: n/a")
-    
-    # === Network Traffic (only if requested) ===
-    if show_network:
-        try:
-            # Network RX/TX bytes per second
-            net_rx_expr = f'rate(node_network_receive_bytes_total{{instance="{inst_with_port}",device!~"lo|docker.*|veth.*"}}[5m]) * 8'
-            net_tx_expr = f'rate(node_network_transmit_bytes_total{{instance="{inst_with_port}",device!~"lo|docker.*|veth.*"}}[5m]) * 8'
-            
-            net_rx = prom.query_value(net_rx_expr)
-            net_tx = prom.query_value(net_tx_expr)
-            
-            if isinstance(net_rx, (int, float)) and isinstance(net_tx, (int, float)):
-                rx_mbps = net_rx / 1_000_000  # Convert to Mbps
-                tx_mbps = net_tx / 1_000_000
-                lines.append(f"📡 Network: ↓{rx_mbps:.1f} Mbps / ↑{tx_mbps:.1f} Mbps")
-            else:
-                lines.append("📡 Network: n/a")
-        except Exception:
-            lines.append("📡 Network: n/a")
+    # Все метрики теперь показываются в enrichment summary line сверху
+    # Плагин показывает только рекомендации
     
     # === Recommendations ===
     recommendations = []
