@@ -4,15 +4,17 @@
 
 ```mermaid
 flowchart TD
-    A["Servers<br/>Services, DB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
+    A["Servers<br/>PostgreSQL, MongoDB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
     B --> C["Alertmanager<br/>Alert Routing"]
-    C --> D["SEED Agent v6.1<br/>Plugin System + AI"]
     
-    F["RabbitMQ<br/>Optional Queue"] --> D
+    %% Two input channels to SEED
+    C -->|"HTTP Webhook<br/>:8080/alertmanager"| D["SEED Agent v6.1<br/>Plugin System + AI"]
+    F["RabbitMQ<br/>Message Queue"] -->|"AMQP Consumer<br/>Optional"| D
     
     D --> E["Mattermost<br/>FF-styled notifications"]
     
-    D -.->|"Queries metrics<br/>for enrichment"| B
+    %% SEED queries Prometheus for current metrics to enrich alerts
+    D -.->|"GET current CPU/MEM/Disk<br/>for FF emojis"| B
     
     classDef server fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef monitor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px  
