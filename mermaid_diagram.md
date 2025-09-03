@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TD
-    A["Servers<br/>PostgreSQL, MongoDB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
+    A["Servers<br/>Server, DB, Linux"] --> B["Prometheus<br/>Metrics Collection"]
     B --> C["Alertmanager<br/>Alert Routing"]
     
     %% Two input channels to SEED
