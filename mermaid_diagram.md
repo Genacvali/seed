@@ -9,7 +9,7 @@ flowchart TD
     C --> D["SEED Agent v6.1<br/>Plugin System + AI"]
     D --> E["Mattermost<br/>"]
     
-    D -.->|"Queries metrics"| B
+    D -.->|"RabbitMQ Queue"| B
     
     classDef server fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
     classDef monitor fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px  
