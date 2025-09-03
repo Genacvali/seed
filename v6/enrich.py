@@ -39,9 +39,24 @@ def enrich_alert(alert: dict) -> dict:
         # Для Telegraf (если имена другие):
         # mem_expr = f'100 * ((mem_total{{instance="{inst_with_port}"}} - mem_available{{instance="{inst_with_port}"}}) / mem_total{{instance="{inst_with_port}"}})'
 
+        # Load Average
+        load_expr = f'node_load1{{instance="{inst_with_port}"}}'
+        
+        # Disk usage for root and data
+        disk_root_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="/",fstype!~"tmpfs|overlay"}} 
+                           - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="/",fstype!~"tmpfs|overlay"}})
+                           / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="/",fstype!~"tmpfs|overlay"}}'''
+        
+        disk_data_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="/data",fstype!~"tmpfs|overlay"}} 
+                            - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="/data",fstype!~"tmpfs|overlay"}})
+                            / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="/data",fstype!~"tmpfs|overlay"}}'''
+
         try:
             enr["cpu_now"] = last_value(query(cpu_expr))
             enr["mem_now"] = last_value(query(mem_expr))
+            enr["load_now"] = last_value(query(load_expr))
+            enr["disk_root_now"] = last_value(query(disk_root_expr.replace('\n', '').strip()))
+            enr["disk_data_now"] = last_value(query(disk_data_expr.replace('\n', '').strip()))
             
             # Telegraf fallback if node_exporter metrics not available
             if not isinstance(enr.get("cpu_now"), (int, float)):
@@ -51,6 +66,10 @@ def enrich_alert(alert: dict) -> dict:
             if not isinstance(enr.get("mem_now"), (int, float)):
                 mem_telegraf_expr = f'mem_used_percent{{instance="{inst}",port="9216"}}'
                 enr["mem_now"] = last_value(query(mem_telegraf_expr))
+                
+            if not isinstance(enr.get("load_now"), (int, float)):
+                load_telegraf_expr = f'system_load1{{instance="{inst}",port="9216"}}'
+                enr["load_now"] = last_value(query(load_telegraf_expr))
                 
         except Exception:
             pass
@@ -99,6 +118,11 @@ def enrich_alert(alert: dict) -> dict:
     summary = []
     if "cpu_now" in enr:  summary.append(f"CPU ~ {_pct(enr['cpu_now'])}")
     if "mem_now" in enr:  summary.append(f"MEM ~ {_pct(enr['mem_now'])}")
+    if "load_now" in enr: summary.append(f"⚖️ Load: {_num(enr['load_now'])}")
+    if "disk_root_now" in enr: summary.append(f"Disk /: {_pct(enr['disk_root_now'])}")
+    if "disk_data_now" in enr: summary.append(f"Disk /data: {_pct(enr['disk_data_now'])}")
+    
+    # Legacy disk support (from mountpoint)
     if "disk_used_now" in enr: 
         s = f"Disk {mount} ~ {_pct(enr['disk_used_now'])}"
         if "disk_used_max15m" in enr:

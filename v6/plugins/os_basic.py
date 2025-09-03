@@ -22,68 +22,24 @@ def run(alert: dict, prom, params: dict) -> dict:
     show_swap = params.get("show_swap", False)
     show_host_metrics = params.get("show_host_metrics", True)
     
-    # === Basic Host Metrics ===
-    if show_host_metrics:
-        try:
-            # CPU usage
-            cpu_expr = f'100 * (1 - avg(rate(node_cpu_seconds_total{{instance="{inst_with_port}",mode="idle"}}[5m])))'
-            cpu = prom.query_value(cpu_expr)
-            
-            # Telegraf fallback if node_exporter not available
-            if not isinstance(cpu, (int, float)):
-                cpu_expr = f'100 - cpu_usage_idle{{instance="{inst}",port="9216"}}'
-                cpu = prom.query_value(cpu_expr)
-            
-            lines.append(f"🔥 CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "🔥 CPU: n/a")
-            
-            # Memory usage
-            mem_expr = f'100 * (1 - (node_memory_MemAvailable_bytes{{instance="{inst_with_port}"}} / node_memory_MemTotal_bytes{{instance="{inst_with_port}"}}))'
-            mem = prom.query_value(mem_expr)
-            
-            # Telegraf fallback if node_exporter not available
-            if not isinstance(mem, (int, float)):
-                mem_expr = f'mem_used_percent{{instance="{inst}",port="9216"}}'
-                mem = prom.query_value(mem_expr)
-            
-            lines.append(f"💾 Memory: {mem:.1f}%" if isinstance(mem, (int, float)) else "💾 Memory: n/a")
-            
-            # Load average
-            load_expr = f'node_load1{{instance="{inst_with_port}"}}'
-            load = prom.query_value(load_expr)
-            
-            # Telegraf fallback if node_exporter not available
-            if not isinstance(load, (int, float)):
-                load_expr = f'system_load1{{instance="{inst}",port="9216"}}'
-                load = prom.query_value(load_expr)
-            
-            lines.append(f"⚖️ Load (1m): {load:.2f}" if isinstance(load, (int, float)) else "⚖️ Load: n/a")
-            
-        except Exception as e:
-            lines.append(f"❌ Host metrics error: {str(e)[:50]}")
-    
-    # === Disk Usage ===
+    # === Additional Disk Usage (only /data since / is in enrichment) ===
+    if "/data" not in show_paths:
+        show_paths = ["/data"]  # Force /data check
+        
     for path in show_paths:
-        try:
-            disk_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}} 
-                           - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}})
-                           / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}}'''
-            disk = prom.query_value(disk_expr.replace('\n', '').strip())
-            if isinstance(disk, (int, float)):
-                icon = "🔴" if disk > 90 else "🟡" if disk > 80 else "🟢"
-                lines.append(f"{icon} Disk {path}: {disk:.1f}%")
-        except Exception:
-            lines.append(f"💽 Disk {path}: n/a")
+        if path != "/":  # Skip root, it's already in enrichment summary
+            try:
+                disk_expr = f'''100 * (node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}} 
+                               - node_filesystem_avail_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}})
+                               / node_filesystem_size_bytes{{instance="{inst_with_port}",mountpoint="{path}",fstype!~"tmpfs|overlay"}}'''
+                disk = prom.query_value(disk_expr.replace('\n', '').strip())
+                if isinstance(disk, (int, float)):
+                    icon = "🔴" if disk > 90 else "🟡" if disk > 80 else "🟢"
+                    lines.append(f"{icon} Disk {path}: {disk:.1f}%")
+            except Exception:
+                lines.append(f"💽 Disk {path}: n/a")
     
-    # === Swap Usage ===
-    if show_swap:
-        try:
-            swap_expr = f'100 * (1 - (node_memory_SwapFree_bytes{{instance="{inst_with_port}"}} / node_memory_SwapTotal_bytes{{instance="{inst_with_port}"}}))'
-            swap = prom.query_value(swap_expr)
-            lines.append(f"🔄 Swap: {swap:.1f}%" if isinstance(swap, (int, float)) else "🔄 Swap: n/a")
-        except Exception:
-            lines.append("🔄 Swap: n/a")
-    
-    # === Network Traffic ===
+    # === Network Traffic (only if requested) ===
     if show_network:
         try:
             # Network RX/TX bytes per second
@@ -101,16 +57,6 @@ def run(alert: dict, prom, params: dict) -> dict:
                 lines.append("📡 Network: n/a")
         except Exception:
             lines.append("📡 Network: n/a")
-    
-    # === Process Information ===
-    if show_processes:
-        try:
-            # Running processes
-            procs_expr = f'node_processes_running{{instance="{inst_with_port}"}}'
-            procs = prom.query_value(procs_expr)
-            lines.append(f"⚙️ Running processes: {procs}" if isinstance(procs, (int, float)) else "⚙️ Processes: n/a")
-        except Exception:
-            lines.append("⚙️ Processes: n/a")
     
     # === Recommendations ===
     recommendations = []
