@@ -1,41 +1,49 @@
-# SEED Agent v6 - Demo Test Requests
+# 🌌 S.E.E.D. Agent v6.1 - Demo Test Requests
+*Final Fantasy стиль мониторинга с эпичными эмодзи и AI диагностикой*
 
-## 1. Базовые тесты системы
+## 🎮 Что демонстрируем в v6.1:
+- 💎🔥 **Final Fantasy эмодзи** для всех метрик (CPU/Memory/Disk)
+- 🧙‍♂️ **AI диагностика** с улучшенным форматированием
+- ⚔️ **Plugin System** с специализированными обработчиками
+- 🛡️ **Smart Enrichment** с Prometheus + Telegraf fallback
+- ✨ **No Duplicates** - все метрики только в summary line
+
+## 1. 🔍 Базовые тесты системы
 
 ### Проверка здоровья агента
 ```bash
-# Health check
+# Health check - покажет статус всех компонентов
 curl -s http://p-dba-seed-adv-msk01:8080/health | jq .
 
-# Простой тест уведомлений
+# Простой тест уведомлений с Final Fantasy стилем
 curl -X POST http://p-dba-seed-adv-msk01:8080/test
 ```
 
 ## 2. Демонстрация плагинов
 
-### OS/System алерты (os_basic plugin)
+### 🖥️ OS/System алерты (os_basic plugin)
+*Демонстрирует Final Fantasy эмодзи и отсутствие дублирования метрик*
 
 ```bash
-# Алерт низкого места на диске
+# 💾 Алерт высокого использования памяти - покажет 🏰 MEM эмодзи
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
     "alerts": [{
       "status": "firing",
       "labels": {
-        "alertname": "DiskSpaceLow",
-        "instance": "prod-db01.example.com",
-        "severity": "warning",
-        "device": "/dev/sda1"
+        "alertname": "HighMemoryUsage",
+        "instance": "nt-smi-mng-sc-msk03",
+        "severity": "high"
       },
       "annotations": {
-        "summary": "Disk space is running low on prod-db01",
-        "description": "Filesystem /dev/sda1 has less than 15% free space"
+        "summary": "Memory usage is critically high",
+        "description": "Memory usage at 88% for 10+ minutes"
       }
     }]
   }'
 
-# Алерт высокой нагрузки CPU
+# ⚔️ Алерт высокой нагрузки CPU - покажет CPU эмодзи прогрессию
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
   -d '{
@@ -43,19 +51,172 @@ curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
       "status": "firing", 
       "labels": {
         "alertname": "HighCPUUsage",
-        "instance": "prod-app02.example.com",
-        "severity": "critical"
+        "instance": "p-smi-mng-sc-msk06",
+        "severity": "high"
       },
       "annotations": {
-        "summary": "High CPU usage detected on prod-app02",
+        "summary": "High CPU usage on database server",
         "description": "CPU usage is above 90% for more than 5 minutes"
       }
     }]
   }'
+```
 
-# Алерт высокого потребления памяти
+### 🐘 PostgreSQL алерты (pg_slow plugin)  
+*Демонстрирует специализированную диагностику БД*
+
+```bash
+# 💎🔥 Критичные медленные запросы PostgreSQL
 curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
   -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "PostgresSlowQuery",
+        "instance": "p-smi-mng-sc-msk07",
+        "severity": "critical",
+        "database": "main_db"
+      },
+      "annotations": {
+        "summary": "Critical slow queries in main database", 
+        "description": "Multiple queries taking >10 seconds"
+      }
+    }]
+  }'
+```
+
+### 🍃 MongoDB алерты (mongo_hot plugin)
+*Демонстрирует MongoDB анализ и рекомендации*
+
+```bash
+# 🛡️ MongoDB медленные операции
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "MongoSlowQuery",
+        "instance": "p-smi-mng-sc-msk07:9216",
+        "severity": "warning",
+        "database": "analytics"
+      },
+      "annotations": {
+        "summary": "Slow MongoDB operations detected",
+        "description": "Operations taking >1000ms detected in analytics DB"
+      }
+    }]
+  }'
+```
+
+### 🌐 Host алерты (host_inventory plugin)
+*Демонстрирует сетевую диагностику*
+
+```bash
+# ⚙️ Сервис недоступен  
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [{
+      "status": "firing",
+      "labels": {
+        "alertname": "InstanceDown",
+        "instance": "p-smi-mng-sc-msk08",
+        "severity": "critical"
+      },
+      "annotations": {
+        "summary": "Instance is down",
+        "description": "Host is not responding to health checks"
+      }
+    }]
+  }'
+```
+
+## 3. 🎮 Комплексная демонстрация Final Fantasy стиля
+
+### 🌟 Мультиалертный инцидент - демонстрирует все фишки v6.1:
+```bash
+# 💎🔥 Комплексный инцидент: PostgreSQL + CPU + Memory
+curl -X POST http://p-dba-seed-adv-msk01:8080/alertmanager \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "alerts": [
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "PostgresSlowQuery",
+          "instance": "p-smi-mng-sc-msk07",
+          "severity": "critical",
+          "database": "main_db"
+        },
+        "annotations": {
+          "summary": "Critical slow queries in main database", 
+          "description": "Multiple queries taking >10 seconds"
+        }
+      },
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "HighCPUUsage", 
+          "instance": "p-smi-mng-sc-msk06",
+          "severity": "high"
+        },
+        "annotations": {
+          "summary": "High CPU usage on database server",
+          "description": "CPU usage at 95% for 10+ minutes"
+        }
+      },
+      {
+        "status": "firing",
+        "labels": {
+          "alertname": "HighMemoryUsage",
+          "instance": "p-smi-mng-sc-msk07", 
+          "severity": "warning"
+        },
+        "annotations": {
+          "summary": "Memory usage approaching limits",
+          "description": "Memory usage at 88%"
+        }
+      }
+    ]
+  }'
+```
+
+## 4. 🧙‍♂️ Что ожидать в демонстрации
+
+### ✨ Final Fantasy эмодзи прогрессии:
+- **CPU**: ✨ (0-50%) → ⚔️ (50-70%) → 🗡️ (70-90%) → 💎🔥 (90%+)
+- **Memory**: 🌟 (0-50%) → 🛡️ (50-70%) → 🏰 (70-90%) → 💎🔥 (90%+)  
+- **Disk**: ✨ (0-60%) → 🛡️ (60-80%) → ⚔️ (80-90%) → 💎🔥 (90%+)
+
+### 🔧 Структура уведомления:
+1. **🌌 S.E.E.D. заголовок** с красивой рамкой
+2. **⚔️ Алерт с эмодзи** по критичности
+3. **📊 Summary line** с Final Fantasy эмодзи для всех метрик
+4. **🔧 Детальная диагностика** от плагинов (БЕЗ дублирования метрик)
+5. **🧠 Магия кристалла** с AI анализом и структурированными рекомендациями
+
+### 🎯 Ключевые фишки для демо:
+- **Нет дублирования** - все метрики только в summary line сверху
+- **AI форматирование** - четкие секции "Диагностика" и "Рекомендации"  
+- **Telegraf fallback** - работает даже если node_exporter недоступен
+- **Plugin specialization** - каждый тип алерта обрабатывается специализированным плагином
+
+## 5. 🚀 Готовность к презентации
+
+```bash
+# Проверить что все работает
+curl http://p-dba-seed-adv-msk01:8080/health | jq .
+
+# Убедиться что LLM включен для "магии кристалла"  
+grep USE_LLM /path/to/configs/seed.env
+
+# Проверить подключение к Prometheus для эмодзи
+grep PROM_URL /path/to/configs/seed.env
+```
+
+**🎮 Ready for Epic Demo! ⚔️✨**
   -d '{
     "alerts": [{
       "status": "firing",
