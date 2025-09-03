@@ -114,17 +114,35 @@ def enrich_alert(alert: dict) -> dict:
         except Exception:
             pass
 
+    # Функция для выбора эмодзи диска по проценту заполненности
+    def _disk_emoji(usage):
+        if not isinstance(usage, (int, float)):
+            return "💽"
+        if usage >= 90:
+            return "🔴"  # Критично
+        elif usage >= 80:
+            return "🟡"  # Предупреждение
+        elif usage >= 60:
+            return "🟠"  # Заметно
+        else:
+            return "🟢"  # Норма
+    
     # Удобные строковые краткие подписи (на карточку)
     summary = []
     if "cpu_now" in enr:  summary.append(f"CPU ~ {_pct(enr['cpu_now'])}")
     if "mem_now" in enr:  summary.append(f"MEM ~ {_pct(enr['mem_now'])}")
     if "load_now" in enr: summary.append(f"⚖️ Load: {_num(enr['load_now'])}")
-    if "disk_root_now" in enr: summary.append(f"Disk /: {_pct(enr['disk_root_now'])}")
-    if "disk_data_now" in enr: summary.append(f"Disk /data: {_pct(enr['disk_data_now'])}")
+    if "disk_root_now" in enr: 
+        emoji = _disk_emoji(enr['disk_root_now'])
+        summary.append(f"{emoji} Disk /: {_pct(enr['disk_root_now'])}")
+    if "disk_data_now" in enr: 
+        emoji = _disk_emoji(enr['disk_data_now'])
+        summary.append(f"{emoji} Disk /data: {_pct(enr['disk_data_now'])}")
     
     # Legacy disk support (from mountpoint)
     if "disk_used_now" in enr: 
-        s = f"Disk {mount} ~ {_pct(enr['disk_used_now'])}"
+        emoji = _disk_emoji(enr['disk_used_now'])
+        s = f"{emoji} Disk {mount}: {_pct(enr['disk_used_now'])}"
         if "disk_used_max15m" in enr:
             s += f" (≤{_pct(enr['disk_used_max15m'])} за 15м)"
         summary.append(s)
