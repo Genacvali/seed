@@ -114,23 +114,52 @@ def enrich_alert(alert: dict) -> dict:
         except Exception:
             pass
 
-    # Функция для выбора эмодзи диска по проценту заполненности
+    # Final Fantasy стиль эмодзи для дисков
     def _disk_emoji(usage):
         if not isinstance(usage, (int, float)):
-            return "💽"
+            return "⚙️"  # Механизм - неизвестно
         if usage >= 90:
-            return "🔴"  # Критично
+            return "💎🔥"  # Красный кристалл с огнем - критично
         elif usage >= 80:
-            return "🟡"  # Предупреждение
+            return "⚔️"  # Меч - опасно
         elif usage >= 60:
-            return "🟠"  # Заметно
+            return "🛡️"  # Щит - осторожно
         else:
-            return "🟢"  # Норма
+            return "✨"  # Звездочка - все хорошо
     
+    # Final Fantasy стиль эмодзи для разных метрик
+    def _cpu_emoji(usage):
+        if not isinstance(usage, (int, float)):
+            return "🔮"  # Кристальная сфера - неизвестно
+        if usage >= 90:
+            return "💎🔥"  # Красный кристалл с огнем - критично
+        elif usage >= 70:
+            return "🗡️"  # Острый меч - высокая нагрузка
+        elif usage >= 50:
+            return "⚔️"  # Скрещенные мечи - средняя нагрузка
+        else:
+            return "✨"  # Звездочка - низкая нагрузка
+            
+    def _mem_emoji(usage):
+        if not isinstance(usage, (int, float)):
+            return "🧙‍♂️"  # Маг - неизвестно
+        if usage >= 90:
+            return "💎🔥"  # Красный кристалл с огнем - критично
+        elif usage >= 70:
+            return "🏰"  # Замок - высокое использование
+        elif usage >= 50:
+            return "🛡️"  # Щит - среднее использование  
+        else:
+            return "🌟"  # Звезда - низкое использование
+
     # Удобные строковые краткие подписи (на карточку)
     summary = []
-    if "cpu_now" in enr:  summary.append(f"CPU ~ {_pct(enr['cpu_now'])}")
-    if "mem_now" in enr:  summary.append(f"MEM ~ {_pct(enr['mem_now'])}")
+    if "cpu_now" in enr:  
+        cpu_emoji = _cpu_emoji(enr['cpu_now'])
+        summary.append(f"{cpu_emoji} CPU ~ {_pct(enr['cpu_now'])}")
+    if "mem_now" in enr:  
+        mem_emoji = _mem_emoji(enr['mem_now'])
+        summary.append(f"{mem_emoji} MEM ~ {_pct(enr['mem_now'])}")
     if "load_now" in enr: summary.append(f"⚖️ Load: {_num(enr['load_now'])}")
     if "disk_root_now" in enr: 
         emoji = _disk_emoji(enr['disk_root_now'])
