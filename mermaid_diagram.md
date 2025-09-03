@@ -35,7 +35,7 @@ flowchart TD
 flowchart LR
     A["Alert Received<br/>PostgresSlowQuery"] --> B["Plugin Router<br/>Route to pg_slow"]
     B --> C["Enrichment<br/>Query Prometheus<br/>for current metrics"]
-    C --> D["Final Fantasy Styling<br/>Apply CPU/MEM/DISK emojis"]
+    C --> D["<br/>Apply CPU/MEM/DISK emojis"]
     D --> E["AI Analysis<br/>GigaChat recommendations"]
     E --> F["Format Message<br/>Beautiful output"]
     F --> G["Send to Mattermost<br/>Channel notification"]
