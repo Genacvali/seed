@@ -14,9 +14,14 @@ SEED v6 – лёгкий HTTP агент:
 import os, json, time, threading, signal, sys
 from typing import Any, Dict, List, Optional
 
-import requests
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse, PlainTextResponse
+import yaml
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+
+from core.config import CFG
+from core.mm import post_to_mm
+from core.llm import GigaChat
 
 try:
     from dotenv import load_dotenv
@@ -72,153 +77,36 @@ def load_env():
 load_env()
 
 # ---------------------------
-# Конфигурация из ENV
+# Конфигурация (через core.config.CFG)
 # ---------------------------
-LISTEN_HOST = os.getenv("LISTEN_HOST", "0.0.0.0")
-LISTEN_PORT = int(os.getenv("LISTEN_PORT", "8080"))
+LISTEN_HOST = CFG.listen_host
+LISTEN_PORT = CFG.listen_port
 
-MM_WEBHOOK      = os.getenv("MM_WEBHOOK", "")
-MM_VERIFY_SSL   = os.getenv("MM_VERIFY_SSL", "1") not in ("0", "false", "False")
-USE_LLM         = os.getenv("USE_LLM", "0") in ("1", "true", "True")
-
-# GigaChat
-GIGACHAT_CLIENT_ID     = os.getenv("GIGACHAT_CLIENT_ID")
-GIGACHAT_CLIENT_SECRET = os.getenv("GIGACHAT_CLIENT_SECRET")
-GIGACHAT_SCOPE         = os.getenv("GIGACHAT_SCOPE", "GIGACHAT_API_PERS")
-GIGACHAT_OAUTH_URL     = os.getenv("GIGACHAT_OAUTH_URL", "https://ngw.devices.sberbank.ru:9443/api/v2/oauth")
-GIGACHAT_API_URL       = os.getenv("GIGACHAT_API_URL", "https://gigachat.devices.sberbank.ru/api/v1/chat/completions")
-GIGACHAT_MODEL         = os.getenv("GIGACHAT_MODEL", "GigaChat-2")
-GIGACHAT_VERIFY_SSL    = os.getenv("GIGACHAT_VERIFY_SSL", "1") not in ("0", "false", "False")
-GIGACHAT_TOKEN_CACHE   = os.getenv("GIGACHAT_TOKEN_CACHE", "/tmp/gigachat_token.json")
+MM_WEBHOOK = CFG.mm_webhook
+USE_LLM = CFG.use_llm
 
 # Rabbit
-RABBIT_ENABLE   = os.getenv("RABBIT_ENABLE", "0") in ("1", "true", "True")
-RABBIT_HOST     = os.getenv("RABBIT_HOST", "localhost")
-RABBIT_PORT     = int(os.getenv("RABBIT_PORT", "5672"))
-RABBIT_SSL      = os.getenv("RABBIT_SSL", "0") in ("1", "true", "True")
-RABBIT_USER     = os.getenv("RABBIT_USER", "seed")
-RABBIT_PASS     = os.getenv("RABBIT_PASS", "seedpass")
-RABBIT_VHOST    = os.getenv("RABBIT_VHOST", "/")
-RABBIT_QUEUE    = os.getenv("RABBIT_QUEUE", "seed-inbox")
+RABBIT_ENABLE = CFG.rabbit_enabled
+RABBIT_HOST = CFG.rabbit_host
+RABBIT_PORT = CFG.rabbit_port
+RABBIT_SSL = CFG.rabbit_ssl
+RABBIT_USER = CFG.rabbit_user
+RABBIT_PASS = CFG.rabbit_pass
+RABBIT_VHOST = CFG.rabbit_vhost
+RABBIT_QUEUE = CFG.rabbit_queue
 
-# Prometheus enrichment
+# Dry-run режим
+DRY_RUN = os.getenv("DRY_RUN", "0") in ("1", "true", "True")
+# Prometheus enrichment (оставляем через ENV, т.к. используется prom.py)
 PROM_URL        = os.getenv("PROM_URL", "")
 PROM_VERIFY_SSL = os.getenv("PROM_VERIFY_SSL", "1") not in ("0", "false", "False")
 PROM_TIMEOUT    = os.getenv("PROM_TIMEOUT", "3")
 PROM_BEARER     = os.getenv("PROM_BEARER", "")
 
-# ---------------------------
-# Утилиты: Mattermost
-# ---------------------------
-def mm_post(text: str, color: Optional[str] = None) -> bool:
-    if not MM_WEBHOOK:
-        print("[MM] webhook not set")
-        return False
-    try:
-        # Если указан цвет, используем attachment для цветного сообщения
-        if color:
-            payload = {
-                "attachments": [{
-                    "color": color,
-                    "text": text,
-                    "mrkdwn_in": ["text"]
-                }]
-            }
-        else:
-            payload = {"text": text}
-            
-        r = requests.post(MM_WEBHOOK, json=payload, timeout=10, verify=MM_VERIFY_SSL)
-        if r.status_code // 100 == 2:
-            print("[MM] OK")
-            return True
-        print(f"[MM] ERR {r.status_code}: {r.text[:200]}")
-        return False
-    except Exception as e:
-        print(f"[MM] EXC: {e}")
-        return False
-
-# ---------------------------
-# Утилиты: GigaChat (минимал)
-# ---------------------------
-def _load_cached_token() -> Optional[Dict[str, Any]]:
-    try:
-        if os.path.exists(GIGACHAT_TOKEN_CACHE):
-            with open(GIGACHAT_TOKEN_CACHE, "r", encoding="utf-8") as f:
-                return json.load(f)
-    except Exception:
-        pass
-    return None
-
-def _save_cached_token(tok: Dict[str, Any]):
-    try:
-        os.makedirs(os.path.dirname(GIGACHAT_TOKEN_CACHE), exist_ok=True)
-        with open(GIGACHAT_TOKEN_CACHE, "w", encoding="utf-8") as f:
-            json.dump(tok, f)
-    except Exception:
-        pass
-
-def _now_ms() -> int:
-    return int(time.time() * 1000)
-
-def _get_gc_token() -> Optional[str]:
-    # cache first  
-    cached = _load_cached_token()
-    if cached and isinstance(cached, dict):
-        # Проверяем по времени жизни токена
-        if cached.get("access_token") and cached.get("exp", 0) > int(time.time()) + 30:
-            return cached["access_token"]
-
-    if not (GIGACHAT_CLIENT_ID and GIGACHAT_CLIENT_SECRET):
-        print("[LLM] OAuth credentials missing")
-        return None
-
-    # OAuth (как в v5)
-    try:
-        import base64, uuid
-        
-        # Подавляем SSL warnings
-        import urllib3
-        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-        
-        auth_key = base64.b64encode(f"{GIGACHAT_CLIENT_ID}:{GIGACHAT_CLIENT_SECRET}".encode()).decode()
-        hdr = {
-            "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json",
-            "RqUID": str(uuid.uuid4()),  # Важно! UUID, не timestamp
-            "Authorization": f"Basic {auth_key}"
-        }
-        
-        data = {"scope": GIGACHAT_SCOPE}
-        print(f"[LLM] OAuth request to {GIGACHAT_OAUTH_URL}")
-        
-        r = requests.post(GIGACHAT_OAUTH_URL, headers=hdr, data=data, timeout=15, verify=GIGACHAT_VERIFY_SSL)
-        print(f"[LLM] OAuth status: {r.status_code}")
-        
-        if r.status_code // 100 != 2:
-            print(f"[LLM] OAuth ERR {r.status_code}: {r.text[:200]}")
-            return None
-            
-        tok_data = r.json()
-        print(f"[LLM] OAuth response keys: {list(tok_data.keys())}")
-        
-        # Сохраняем как в v5
-        token = tok_data.get("access_token")
-        if token:
-            # Сохраняем с правильным форматом времени
-            cache_data = {
-                "access_token": token,
-                "exp": int(time.time()) + 1800  # 30 минут
-            }
-            _save_cached_token(cache_data)
-            print(f"[LLM] OAuth success, token cached")
-            return token
-        else:
-            print(f"[LLM] No access_token in response: {tok_data}")
-            return None
-            
-    except Exception as e:
-        print(f"[LLM] OAuth EXC: {e}")
-        return None
+# Anti-noise настройки (простое throttling/dedup)
+ALERT_THROTTLE_ENABLE = os.getenv("ALERT_THROTTLE_ENABLE", "1") not in ("0", "false", "False")
+ALERT_THROTTLE_WINDOW_SEC = int(os.getenv("ALERT_THROTTLE_WINDOW_SEC", "60"))
+ALERT_THROTTLE_MAX_PER_WINDOW = int(os.getenv("ALERT_THROTTLE_MAX_PER_WINDOW", "3"))
 
 def clean_llm_response(text: str) -> str:
     """Очищает LLM ответ от блоков кода и форматирует для Mattermost"""
@@ -292,54 +180,45 @@ def clean_llm_response(text: str) -> str:
     
     return '\n'.join(result_lines).strip()
 
+def send_alert_message(text: str, color: Optional[str]) -> bool:
+    """
+    Обертка над отправкой в Mattermost с поддержкой DRY_RUN.
+    """
+    if DRY_RUN:
+        print("[DRY_RUN] Message NOT sent to Mattermost. Preview below:")
+        print(text[:500])
+        return True
+
+    return post_to_mm(text, color)
+
 def llm_tip(prompt: str, max_tokens: int = 400) -> Optional[str]:
+    """
+    Обертка над core.llm.GigaChat с форматированием ответа под Mattermost.
+    """
     if not USE_LLM:
         print("[LLM] disabled (USE_LLM=0)")
         return None
-    
+
     print(f"[LLM] requesting tip for prompt: {prompt[:100]}...")
-    
-    tok = _get_gc_token()
-    if not tok:
-        print("[LLM] no token available")
-        return None
-        
+
     try:
-        payload = {
-            "model": GIGACHAT_MODEL,
-            "temperature": 0.2,
-            "max_tokens": max_tokens,
-            "messages": [
-                {"role": "system", "content": "Ты SRE/DBA ассистент. Отвечай кратко и по делу."},
-                {"role": "user", "content": prompt.strip()},
-            ]
-        }
-        
-        print(f"[LLM] sending request to {GIGACHAT_API_URL}")
-        r = requests.post(GIGACHAT_API_URL, headers={"Authorization": f"Bearer {tok}"}, json=payload,
-                          timeout=20, verify=GIGACHAT_VERIFY_SSL)
-        
-        print(f"[LLM] response status: {r.status_code}")
-        
-        if r.status_code // 100 != 2:
-            print(f"[LLM] chat ERR {r.status_code}: {r.text[:200]}")
+        client = GigaChat()
+    except Exception as e:
+        print(f"[LLM] init error: {e}")
+        return None
+
+    try:
+        raw = client.ask(prompt.strip(), max_tokens=max_tokens)
+        if not isinstance(raw, str) or not raw.strip():
+            print("[LLM] empty response")
             return None
-            
-        j = r.json()
-        msg = j.get("choices", [{}])[0].get("message", {}).get("content")
-        
-        if isinstance(msg, str) and msg.strip():
-            # Очищаем ответ от блоков кода и форматируем
-            result = clean_llm_response(msg.strip())
-            print(f"[LLM] success: {result[:100]}...")
-            return result
-        else:
-            print(f"[LLM] empty or invalid response: {j}")
-            return None
-            
+
+        result = clean_llm_response(raw.strip())
+        print(f"[LLM] success: {result[:100]}...")
+        return result
     except Exception as e:
         print(f"[LLM] chat EXC: {e}")
-    return None
+        return None
 
 # ---------------------------
 # Форматирование алертов (Final Fantasy style)
@@ -366,7 +245,7 @@ def get_mattermost_color(severity: str) -> str:
     }
     return color_map.get(severity.lower(), "#808080")
 
-def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None) -> str:
+def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None, count: int = 1) -> str:
     labels = alert.get("labels", {})
     ann = alert.get("annotations", {})
     status = alert.get("status", "firing")
@@ -392,8 +271,9 @@ def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None) -> st
         status_icon = severity_icons.get(sev.lower(), "🔴")
     
     # Компактный FF-стиль с обогащенными данными
+    suffix = f" ×{count}" if count and count > 1 else ""
     lines = [
-        f"{emoji} **{name}** {status_icon}",
+        f"{emoji} **{name}**{suffix} {status_icon}",
         f"└── Host: `{inst}` | Severity: **{sev.upper()}**"
     ]
     
@@ -405,32 +285,65 @@ def fmt_alert_line(alert: Dict[str, Any], enriched: Dict[str, Any] = None) -> st
     
     return "\n".join(lines)
 
+_alert_throttle_state: Dict[str, Dict[str, Any]] = {}
+
+def _make_alert_key(alert: Dict[str, Any]) -> str:
+    labels = alert.get("labels", {}) or {}
+    name = labels.get("alertname", "")
+    inst = labels.get("instance") or labels.get("pod") or labels.get("job") or ""
+    sev = labels.get("severity", "")
+    status = alert.get("status", "firing")
+    return f"{name}|{inst}|{sev}|{status}"
+
 def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
-    """Возвращает (текст_сообщения, цвет_для_mattermost)"""
+    """Возвращает (текст_сообщения, цвет_для_mattermost) с простым dedup/throttling."""
     if not alerts:
         return "🌌 **SEED Crystal** - No alerts detected", None
-    
+
     # FF-style заголовок
     head = "🌌 **S.E.E.D.** - Smart Event Explainer & Diagnostics\n" + "═" * 55
-    
-    lines = []
-    severities = []
-    llm_context = []
-    
-    plugin_results = []
-    
+
+    # Группируем одинаковые алерты (по alertname+instance+severity+status)
+    grouped: Dict[str, Dict[str, Any]] = {}
     for a in alerts:
+        key = _make_alert_key(a)
+        g = grouped.setdefault(key, {"alert": a, "count": 0})
+        g["count"] += 1
+
+    lines: List[str] = []
+    severities: List[str] = []
+    llm_context: List[str] = []
+    plugin_results: List[Dict[str, Any]] = []
+    throttled_keys: List[str] = []
+
+    now = time.time()
+
+    for key, info in grouped.items():
+        a = info["alert"]
+        count = info["count"]
+
+        # Простое throttling по ключу
+        if ALERT_THROTTLE_ENABLE:
+            st = _alert_throttle_state.get(key)
+            if not st or now - st.get("first_ts", 0) > ALERT_THROTTLE_WINDOW_SEC:
+                st = {"first_ts": now, "count": 0}
+            st["count"] += count
+            _alert_throttle_state[key] = st
+            if st["count"] > ALERT_THROTTLE_MAX_PER_WINDOW:
+                throttled_keys.append(key)
+                continue
+
         # Обогащаем алерт данными из Prometheus
-        enriched = {}
+        enriched: Dict[str, Any] = {}
         if ENRICHMENT_AVAILABLE and PROM_URL:
             try:
                 enriched = enrich_alert(a)
                 print(f"[ENRICH] {a.get('labels', {}).get('alertname', 'Alert')}: {enriched.get('summary_line', 'no data')}")
             except Exception as e:
                 print(f"[ENRICH] failed: {e}")
-        
+
         # Запускаем плагин для алерта
-        plugin_result = None
+        plugin_result: Optional[Dict[str, Any]] = None
         if PLUGINS_AVAILABLE and plugin_router and PROM_CLIENT_AVAILABLE and prom:
             try:
                 plugin_result = plugin_router.run_plugin(a, prom)
@@ -438,27 +351,29 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
                     plugin_results.append(plugin_result)
             except Exception as e:
                 print(f"[PLUGIN] Error processing alert: {e}")
-        
-        lines.append(fmt_alert_line(a, enriched))
+
+        lines.append(fmt_alert_line(a, enriched, count=count))
         severities.append(a.get("labels", {}).get("severity", "info"))
-        
+
         # Создаем более богатый контекст для LLM
         labels = a.get("labels", {})
         ann = a.get("annotations", {})
-        alert_context = f"{labels.get('alertname', 'Alert')}: {ann.get('summary', '')}"
-        
+        alert_context = f"{labels.get('alertname', 'Alert')} (x{count}): {ann.get('summary', '')}" if count > 1 else f"{labels.get('alertname', 'Alert')}: {ann.get('summary', '')}"
+
         # Добавляем метрики в контекст для LLM
         if enriched.get("summary_line"):
             alert_context += f" | Метрики: {enriched['summary_line']}"
-        
+
         # Добавляем результаты плагина в контекст LLM
         if plugin_result and plugin_result.get("lines"):
             plugin_summary = "; ".join(plugin_result["lines"][:3])  # Первые 3 строки
             alert_context += f" | Плагин: {plugin_summary}"
-            
+
         llm_context.append(alert_context)
-    
-    text = head + "\n\n" + "\n\n".join(lines)
+
+    text = head
+    if lines:
+        text += "\n\n" + "\n\n".join(lines)
     
     # Краткая статистика
     if len(alerts) > 1:
@@ -467,6 +382,10 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
             sev_counts[s] = sev_counts.get(s, 0) + 1
         stats = " | ".join([f"{get_severity_emoji(s)} {s}:{c}" for s, c in sev_counts.items()])
         text += f"\n\n📊 **Summary:** {stats}"
+
+    # Информация о throttling (если что-то было подавлено)
+    if throttled_keys:
+        text += f"\n\n⏱ **Throttling:** suppressed {len(throttled_keys)} alert group(s) in the last {ALERT_THROTTLE_WINDOW_SEC}s"
     
     # Результаты плагинов (детальная диагностика)
     if plugin_results:
@@ -512,7 +431,8 @@ async def health():
         "rabbit_enabled": RABBIT_ENABLE,
         "prometheus_enrichment": ENRICHMENT_AVAILABLE and bool(PROM_URL),
         "prometheus_url": PROM_URL if PROM_URL else None,
-        "version": "v6.1"
+        "dry_run": DRY_RUN,
+        "version": "v6.2"
     }
     
     # Добавляем информацию о плагинах
@@ -556,7 +476,7 @@ async def test_endpoint(req: Request):
         ]
     }
     text, color = fmt_batch_message(pkg["alerts"])
-    ok = mm_post(text, color)
+    ok = send_alert_message(text, color)
     return {"ok": ok, "sent_text": text}
 
 @app.post("/alertmanager")
@@ -571,8 +491,231 @@ async def alertmanager_webhook(req: Request):
         return JSONResponse({"error": "no alerts[]"}, status_code=400)
 
     text, color = fmt_batch_message(alerts)
-    ok = mm_post(text, color)
+    ok = send_alert_message(text, color)
     return {"ok": ok}
+
+# ---------------------------
+# Admin panel: статика + API
+# ---------------------------
+STATIC_DIR = os.path.join(BASE_DIR, "static")
+ALERTS_YAML = os.path.join(BASE_DIR, "configs", "alerts.yaml")
+
+# Отдаём /static/* (иконки, css и т.п.)
+if os.path.isdir(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+@app.get("/admin")
+async def admin_page():
+    html_path = os.path.join(STATIC_DIR, "admin.html")
+    if os.path.exists(html_path):
+        return FileResponse(html_path, media_type="text/html")
+    return HTMLResponse("<h1>admin.html not found</h1>", status_code=404)
+
+@app.get("/")
+async def index():
+    """Главная страница — просто отдаём админ‑панель."""
+    return await admin_page()
+
+@app.get("/admin/env")
+async def admin_get_env():
+    """Вернуть текущие ключи из configs/seed.env (без секретов полностью)."""
+    data: Dict[str, str] = {}
+    if os.path.exists(ENV_PATH):
+        with open(ENV_PATH, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    k, v = line.split("=", 1)
+                    data[k.strip()] = v.strip()
+    return data
+
+@app.put("/admin/env")
+async def admin_put_env(req: Request):
+    """Записать seed.env из JSON {KEY: VALUE, ...}."""
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, 400)
+
+    lines: List[str] = []
+    for k, v in body.items():
+        lines.append(f"{k}={v}")
+
+    try:
+        os.makedirs(os.path.dirname(ENV_PATH), exist_ok=True)
+        with open(ENV_PATH, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        return {"ok": True, "note": "Restart agent to apply changes"}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+@app.get("/admin/routes")
+async def admin_get_routes():
+    """Вернуть текущие маршруты из alerts.yaml + список доступных плагинов."""
+    data: Dict[str, Any] = {"routes": [], "default_plugin": "echo", "available_plugins": []}
+    if os.path.exists(ALERTS_YAML):
+        with open(ALERTS_YAML, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        data["routes"] = cfg.get("routes", [])
+        data["default_plugin"] = cfg.get("default_plugin", "echo")
+
+    plugins_dir = os.path.join(BASE_DIR, "plugins")
+    if os.path.isdir(plugins_dir):
+        data["available_plugins"] = sorted(
+            f.replace(".py", "")
+            for f in os.listdir(plugins_dir)
+            if f.endswith(".py") and f != "__init__.py"
+        )
+    return data
+
+@app.put("/admin/routes")
+async def admin_put_routes(req: Request):
+    """Сохранить маршруты в alerts.yaml и горячий релоад."""
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, 400)
+
+    cfg = {
+        "routes": body.get("routes", []),
+        "default_plugin": body.get("default_plugin", "echo"),
+        "default_params": body.get("default_params", {"show_basic_info": True}),
+    }
+    try:
+        os.makedirs(os.path.dirname(ALERTS_YAML), exist_ok=True)
+        with open(ALERTS_YAML, "w", encoding="utf-8") as f:
+            yaml.dump(cfg, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+
+        if PLUGINS_AVAILABLE and plugin_router:
+            plugin_router.load_config()
+            print("[ADMIN] Routes reloaded")
+
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+PLUGINS_DIR = os.path.join(BASE_DIR, "plugins")
+
+PLUGIN_TEMPLATE = '''\
+# -*- coding: utf-8 -*-
+"""
+Plugin: {name}
+
+Как подключить — добавить в configs/alerts.yaml:
+  - match: {{alertname: "YourAlert"}}
+    plugin: "{name}"
+    params: {{}}
+"""
+
+def run(alert: dict, prom, params: dict) -> dict:
+    labels = alert.get("labels", {{}})
+    annotations = alert.get("annotations", {{}})
+    instance = labels.get("instance", "unknown")
+    alertname = labels.get("alertname", "Alert")
+
+    lines = []
+
+    # ── Ваша логика ────────────────────────────────────
+    # Запрос к Prometheus:
+    #   val = prom.query_value(\'some_metric{{instance="%s"}}\' % instance)
+    #   if isinstance(val, (int, float)):
+    #       lines.append(f"Metric: {{val:.1f}}")
+    # ───────────────────────────────────────────────────
+
+    return {{
+        "title": f"{{alertname}} @ {{instance}}",
+        "lines": lines,
+    }}
+'''
+
+@app.get("/admin/plugins")
+async def admin_list_plugins():
+    """Список плагинов в plugins/ с размером и датой изменения."""
+    os.makedirs(PLUGINS_DIR, exist_ok=True)
+    result = []
+    for fname in sorted(os.listdir(PLUGINS_DIR)):
+        if not fname.endswith(".py") or fname.startswith("_"):
+            continue
+        fpath = os.path.join(PLUGINS_DIR, fname)
+        stat = os.stat(fpath)
+        result.append({
+            "name": fname.replace(".py", ""),
+            "file": fname,
+            "size": stat.st_size,
+            "mtime": int(stat.st_mtime),
+        })
+    return {"plugins": result}
+
+@app.get("/admin/plugins/{name}")
+async def admin_get_plugin(name: str):
+    """Вернуть исходный код плагина."""
+    fpath = os.path.join(PLUGINS_DIR, f"{name}.py")
+    if not os.path.exists(fpath):
+        return JSONResponse({"ok": False, "error": "not found"}, 404)
+    with open(fpath, "r", encoding="utf-8") as f:
+        code = f.read()
+    return {"ok": True, "name": name, "code": code}
+
+@app.put("/admin/plugins/{name}")
+async def admin_put_plugin(name: str, req: Request):
+    """Создать или обновить плагин (сохранить Python-код)."""
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, 400)
+
+    code = body.get("code", "")
+    if not code.strip():
+        return JSONResponse({"ok": False, "error": "empty code"}, 400)
+
+    os.makedirs(PLUGINS_DIR, exist_ok=True)
+    fpath = os.path.join(PLUGINS_DIR, f"{name}.py")
+    try:
+        with open(fpath, "w", encoding="utf-8") as f:
+            f.write(code)
+        # Сбросить кэш плагина в роутере, чтобы следующий вызов перезагрузил его
+        if PLUGINS_AVAILABLE and plugin_router and name in plugin_router.plugins_cache:
+            del plugin_router.plugins_cache[name]
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+@app.delete("/admin/plugins/{name}")
+async def admin_delete_plugin(name: str):
+    """Удалить плагин."""
+    fpath = os.path.join(PLUGINS_DIR, f"{name}.py")
+    if not os.path.exists(fpath):
+        return JSONResponse({"ok": False, "error": "not found"}, 404)
+    try:
+        os.remove(fpath)
+        if PLUGINS_AVAILABLE and plugin_router and name in plugin_router.plugins_cache:
+            del plugin_router.plugins_cache[name]
+        return {"ok": True}
+    except Exception as e:
+        return JSONResponse({"ok": False, "error": str(e)}, 500)
+
+@app.get("/admin/plugin_template/{name}")
+async def admin_plugin_template(name: str):
+    """Вернуть шаблон нового плагина с подставленным именем."""
+    code = PLUGIN_TEMPLATE.format(name=name)
+    return {"ok": True, "code": code}
+
+@app.post("/admin/dry_run")
+async def admin_dry_run(req: Request):
+    """Прогнать пакет алертов через пайплайн без отправки в MM."""
+    try:
+        payload = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, 400)
+
+    alerts = payload.get("alerts")
+    if not isinstance(alerts, list):
+        alerts = [payload] if isinstance(payload, dict) else []
+
+    text, color = fmt_batch_message(alerts)
+    return {"ok": True, "preview": text, "color": color}
 
 # ---------------------------
 # RabbitMQ consumer (опционально)
@@ -620,7 +763,7 @@ def rabbit_consume_loop():
                     else:
                         # обернём одиночный в пакет
                         text, color = fmt_batch_message([j])
-                    mm_post(text, color)
+                    send_alert_message(text, color)
                 except Exception as e:
                     print(f"[RABBIT] msg err: {e}")
                 finally:
