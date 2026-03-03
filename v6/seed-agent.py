@@ -56,7 +56,14 @@ except Exception:
 # ---------------------------
 # Загрузка ENV из configs/seed.env
 # ---------------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if getattr(sys, "frozen", False):
+    # Запущено из собранного бинарника (PyInstaller onefile) —
+    # считаем рабочей директорией папку рядом с бинарём.
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # Обычный режим разработки — рядом с исходниками.
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 ENV_PATH = os.path.join(BASE_DIR, "configs", "seed.env")
 
 def load_env():
