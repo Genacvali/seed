@@ -23,11 +23,6 @@ from core.config import CFG
 from core.mm import post_to_mm
 from core.llm import GigaChat
 
-try:
-    from dotenv import load_dotenv
-except Exception:
-    load_dotenv = None
-
 # Prometheus enrichment (опционально)
 try:
     from enrich import enrich_alert
@@ -65,23 +60,7 @@ else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 ENV_PATH = os.path.join(BASE_DIR, "configs", "seed.env")
-
-def load_env():
-    # удаляем CRLF на лету (на всякий)
-    if os.path.exists(ENV_PATH):
-        try:
-            with open(ENV_PATH, "rb") as f:
-                raw = f.read()
-            raw = raw.replace(b"\r\n", b"\n")
-            with open(ENV_PATH, "wb") as f:
-                f.write(raw)
-        except Exception:
-            pass
-
-    if load_dotenv is not None and os.path.exists(ENV_PATH):
-        load_dotenv(ENV_PATH)
-
-load_env()
+# .env уже загружен в core/config.py до всех импортов — повторно не нужно.
 
 # ---------------------------
 # Конфигурация (через core.config.CFG)
