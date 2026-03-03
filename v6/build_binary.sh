@@ -24,7 +24,8 @@ if ! command -v pyinstaller >/dev/null 2>&1; then
 fi
 
 echo "[i] Собираю seed-agent (onefile)..."
-pyinstaller \
+# Вызываем через модуль, чтобы не зависеть от PATH (~/.local/bin).
+python3 -m PyInstaller \
   --clean \
   --onefile \
   --name seed-agent \
