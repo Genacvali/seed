@@ -81,18 +81,40 @@ RABBIT_PASS = CFG.rabbit_pass
 RABBIT_VHOST = CFG.rabbit_vhost
 RABBIT_QUEUE = CFG.rabbit_queue
 
-# Dry-run режим
-DRY_RUN = os.getenv("DRY_RUN", "0") in ("1", "true", "True")
-# Prometheus enrichment (оставляем через ENV, т.к. используется prom.py)
-PROM_URL        = os.getenv("PROM_URL", "")
+# ─── Динамическое чтение конфига ─────────────────────────────────────────────
+# Все функции читают значения через эти геттеры, а не через глобальные переменные,
+# чтобы изменения в seed.env применялись сразу (без перезапуска агента).
+
+def _use_llm() -> bool:
+    return os.getenv("USE_LLM", "0") in ("1", "true", "True")
+
+def _dry_run() -> bool:
+    return os.getenv("DRY_RUN", "0") in ("1", "true", "True")
+
+def _mm_webhook() -> str:
+    return os.getenv("MM_WEBHOOK", "")
+
+def _prom_url() -> str:
+    return os.getenv("PROM_URL", "")
+
+def _throttle_enable() -> bool:
+    return os.getenv("ALERT_THROTTLE_ENABLE", "1") not in ("0", "false", "False")
+
+def _throttle_window() -> int:
+    return int(os.getenv("ALERT_THROTTLE_WINDOW_SEC", "") or "60")
+
+def _throttle_max() -> int:
+    return int(os.getenv("ALERT_THROTTLE_MAX_PER_WINDOW", "") or "3")
+
+# Статические значения, которые реально нужны только при старте (порт, очередь и т.п.)
 PROM_VERIFY_SSL = os.getenv("PROM_VERIFY_SSL", "1") not in ("0", "false", "False")
 PROM_TIMEOUT    = os.getenv("PROM_TIMEOUT", "3")
 PROM_BEARER     = os.getenv("PROM_BEARER", "")
 
-# Anti-noise настройки (простое throttling/dedup)
-ALERT_THROTTLE_ENABLE = os.getenv("ALERT_THROTTLE_ENABLE", "1") not in ("0", "false", "False")
-ALERT_THROTTLE_WINDOW_SEC = int(os.getenv("ALERT_THROTTLE_WINDOW_SEC", "") or "60")
-ALERT_THROTTLE_MAX_PER_WINDOW = int(os.getenv("ALERT_THROTTLE_MAX_PER_WINDOW", "") or "3")
+# Обратная совместимость: оставляем переменные как свойства-ссылки на геттеры.
+# Прямое обращение к USE_LLM/DRY_RUN осталось лишь в нескольких местах ниже —
+# все они заменены на вызовы геттеров.
+PROM_URL = _prom_url()   # используется только в проверке ENRICHMENT
 
 def clean_llm_response(text: str) -> str:
     """Очищает LLM ответ от блоков кода и форматирует для Mattermost"""
@@ -167,21 +189,16 @@ def clean_llm_response(text: str) -> str:
     return '\n'.join(result_lines).strip()
 
 def send_alert_message(text: str, color: Optional[str]) -> bool:
-    """
-    Обертка над отправкой в Mattermost с поддержкой DRY_RUN.
-    """
-    if DRY_RUN:
+    """Обертка над отправкой в Mattermost с поддержкой DRY_RUN."""
+    if _dry_run():
         print("[DRY_RUN] Message NOT sent to Mattermost. Preview below:")
         print(text[:500])
         return True
-
     return post_to_mm(text, color)
 
 def llm_tip(prompt: str, max_tokens: int = 400) -> Optional[str]:
-    """
-    Обертка над core.llm.GigaChat с форматированием ответа под Mattermost.
-    """
-    if not USE_LLM:
+    """Обертка над core.llm.GigaChat с форматированием ответа под Mattermost."""
+    if not _use_llm():
         print("[LLM] disabled (USE_LLM=0)")
         return None
 
@@ -309,19 +326,19 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
         count = info["count"]
 
         # Простое throttling по ключу
-        if ALERT_THROTTLE_ENABLE:
+        if _throttle_enable():
             st = _alert_throttle_state.get(key)
-            if not st or now - st.get("first_ts", 0) > ALERT_THROTTLE_WINDOW_SEC:
+            if not st or now - st.get("first_ts", 0) > _throttle_window():
                 st = {"first_ts": now, "count": 0}
             st["count"] += count
             _alert_throttle_state[key] = st
-            if st["count"] > ALERT_THROTTLE_MAX_PER_WINDOW:
+            if st["count"] > _throttle_max():
                 throttled_keys.append(key)
                 continue
 
         # Обогащаем алерт данными из Prometheus
         enriched: Dict[str, Any] = {}
-        if ENRICHMENT_AVAILABLE and PROM_URL:
+        if ENRICHMENT_AVAILABLE and _prom_url():
             try:
                 enriched = enrich_alert(a)
                 print(f"[ENRICH] {a.get('labels', {}).get('alertname', 'Alert')}: {enriched.get('summary_line', 'no data')}")
@@ -371,7 +388,7 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
 
     # Информация о throttling (если что-то было подавлено)
     if throttled_keys:
-        text += f"\n\n⏱ **Throttling:** suppressed {len(throttled_keys)} alert group(s) in the last {ALERT_THROTTLE_WINDOW_SEC}s"
+        text += f"\n\n⏱ **Throttling:** suppressed {len(throttled_keys)} alert group(s) in the last {_throttle_window()}s"
     
     # Результаты плагинов (детальная диагностика)
     if plugin_results:
@@ -384,7 +401,7 @@ def fmt_batch_message(alerts: List[Dict[str, Any]]) -> tuple:
                 text += "\n".join(plugin_lines)
     
     # LLM рекомендация с обогащенным контекстом
-    if USE_LLM and len(alerts) > 0:
+    if _use_llm() and len(alerts) > 0:
         # Используем обогащенный контекст для более точных рекомендаций
         context_str = "; ".join(llm_context[:3])  # Первые 3 алерта
         prompt = f"Алерты мониторинга с метриками: {context_str}. Дай подробную диагностику и 3-4 конкретных шага решения проблемы."
@@ -412,13 +429,13 @@ app = FastAPI(title="SEED v6 Agent")
 async def health():
     health_info = {
         "status": "ok",
-        "mm_webhook": bool(MM_WEBHOOK),
-        "use_llm": USE_LLM,
+        "mm_webhook": bool(_mm_webhook()),
+        "use_llm": _use_llm(),
         "rabbit_enabled": RABBIT_ENABLE,
-        "prometheus_enrichment": ENRICHMENT_AVAILABLE and bool(PROM_URL),
-        "prometheus_url": PROM_URL if PROM_URL else None,
-        "dry_run": DRY_RUN,
-        "version": "v6.2"
+        "prometheus_enrichment": ENRICHMENT_AVAILABLE and bool(_prom_url()),
+        "prometheus_url": _prom_url() or None,
+        "dry_run": _dry_run(),
+        "version": "v6.2",
     }
     
     # Добавляем информацию о плагинах
@@ -519,7 +536,7 @@ async def admin_get_env():
 
 @app.put("/admin/env")
 async def admin_put_env(req: Request):
-    """Записать seed.env из JSON {KEY: VALUE, ...}."""
+    """Записать seed.env и сразу применить переменные в os.environ (hot-reload)."""
     try:
         body = await req.json()
     except Exception:
@@ -533,7 +550,13 @@ async def admin_put_env(req: Request):
         os.makedirs(os.path.dirname(ENV_PATH), exist_ok=True)
         with open(ENV_PATH, "w", encoding="utf-8") as f:
             f.write("\n".join(lines) + "\n")
-        return {"ok": True, "note": "Restart agent to apply changes"}
+
+        # Применяем новые значения сразу в текущий процесс
+        for k, v in body.items():
+            os.environ[k] = str(v)
+
+        print("[ADMIN] Config reloaded from admin panel (hot-reload)")
+        return {"ok": True, "note": "Applied immediately — no restart needed"}
     except Exception as e:
         return JSONResponse({"ok": False, "error": str(e)}, 500)
 
