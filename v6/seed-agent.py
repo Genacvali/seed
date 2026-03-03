@@ -727,6 +727,26 @@ async def admin_dry_run(req: Request):
     return {"ok": True, "preview": text, "color": color}
 
 
+@app.get("/admin/plugins/{name}/schema")
+async def admin_plugin_schema(name: str):
+    """
+    Возвращает PARAMS_SCHEMA плагина, если он её объявляет.
+    Ответ: { "schema": {...} } или { "schema": null }
+    """
+    plugin_file = os.path.join(BASE_DIR, "plugins", f"{name}.py")
+    if not os.path.isfile(plugin_file):
+        return JSONResponse({"error": f"Plugin not found: {name}"}, status_code=404)
+    try:
+        import importlib.util as _ilu
+        spec = _ilu.spec_from_file_location(f"_schema_{name}", plugin_file)
+        mod  = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        schema = getattr(mod, "PARAMS_SCHEMA", None)
+        return {"schema": schema}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.post("/admin/test_plugin")
 async def admin_test_plugin(req: Request):
     """

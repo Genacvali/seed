@@ -473,6 +473,16 @@ textarea.code{border-radius:0 0 6px 6px}
 ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
 .divider{height:1px;background:var(--border);margin:16px 0}
+
+/* ─── SCHEMA PARAMS FORM ─────────────────────────────── */
+.schema-field{margin-bottom:14px}
+.schema-field-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:.03em}
+.schema-field-desc{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.4}
+.schema-toggle{display:flex;align-items:center;gap:8px;cursor:pointer}
+.schema-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+.metric-row{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:6px;border:1px solid var(--border)}
+.metric-row input{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text1);font-size:12px}
+.metric-row input:focus{outline:none;border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -693,32 +703,38 @@ textarea.code{border-radius:0 0 6px 6px}
       <div class="card-body" style="border-top:1px solid var(--border)">
         <div class="add-form">
           <div class="add-form-title">Добавить маршрут</div>
-          <div class="add-form-row">
+          <div class="add-form-row" style="align-items:flex-start">
             <div>
               <div class="field-label">alertname</div>
               <input type="text" id="new-match" placeholder="DiskSpaceLow">
             </div>
             <div>
               <div class="field-label">plugin</div>
-              <select id="new-plugin">
+              <select id="new-plugin" onchange="loadPluginSchema(this.value)">
                 <option value="" disabled selected>— выберите плагин —</option>
               </select>
             </div>
-            <div>
-              <div class="field-label">params JSON</div>
-              <input type="text" id="new-params" placeholder='{"lookback":"15m"}'>
-            </div>
-            <div>
-              <div class="field-label" style="opacity:0">.</div>
-              <button class="btn btn-success" onclick="addRoute()">
-                <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                Add
-              </button>
-            </div>
+          </div>
+
+          <!-- Dynamic plugin params form -->
+          <div id="route-params-form" style="display:none;margin-top:14px;padding:14px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
+            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:.05em">ПАРАМЕТРЫ ПЛАГИНА</div>
+            <div id="route-params-fields"></div>
+          </div>
+          <div id="route-no-schema" style="display:none;margin-top:10px;font-size:12px;color:var(--text3)">
+            <div class="field-label" style="margin-bottom:4px">params JSON</div>
+            <input type="text" id="new-params" placeholder='{}' style="width:100%">
+          </div>
+
+          <div style="margin-top:12px">
+            <button class="btn btn-success" onclick="addRoute()">
+              <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Route
+            </button>
           </div>
         </div>
         <div style="margin-top:10px;font-size:11px;color:var(--text3)">
-          Алерт <code>alertname</code> — это метка из Alertmanager. После сохранения маршруты перезагружаются без рестарта агента.
+          Алерт <code>alertname</code> — метка из Alertmanager. После сохранения маршруты перезагружаются без рестарта.
         </div>
       </div>
     </div>
@@ -1510,12 +1526,13 @@ function renderRouteRows(){
   empty.style.display='none';
   tbody.innerHTML=_routes.map((rt,i)=>{
     const m=Object.entries(rt.match||{}).map(([k,v])=>`<code>${k}="${v}"</code>`).join(' ');
-    const p=JSON.stringify(rt.params||{});
+    const params=rt.params||{};
+    const paramBadges=renderParamBadges(params);
     return `<tr>
       <td style="color:var(--text3)">${i+1}</td>
       <td>${m}</td>
       <td>${pluginBadge(rt.plugin)}</td>
-      <td><code>${p}</code></td>
+      <td>${paramBadges}</td>
       <td><button class="btn btn-danger btn-xs" onclick="delRoute(${i})">
         <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button></td>
@@ -1523,21 +1540,187 @@ function renderRouteRows(){
   }).join('');
 }
 
+function renderParamBadges(params){
+  if(!params||!Object.keys(params).length) return '<span style="color:var(--text3);font-size:11px">—</span>';
+  const parts=[];
+  for(const [k,v] of Object.entries(params)){
+    if(k==='extra_metrics' && Array.isArray(v) && v.length){
+      parts.push(`<span class="badge badge-teal" title="${v.map(m=>m.label||m.query).join(', ')}">📡 ${v.length} metrics</span>`);
+    } else if(Array.isArray(v) && v.length){
+      parts.push(`<span class="badge badge-blue">${k}: [${v.join(', ')}]</span>`);
+    } else if(typeof v==='boolean'){
+      if(v!==true) parts.push(`<span class="badge badge-purple">${k}=false</span>`);
+    } else {
+      parts.push(`<span class="badge badge-purple">${k}=${v}</span>`);
+    }
+  }
+  return parts.join(' ')||'<span style="color:var(--text3);font-size:11px">—</span>';
+}
+
 function delRoute(i){_routes.splice(i,1);renderRouteRows();}
+
+/* ── Plugin schema loader ──────────────────────────────────── */
+let _currentSchema=null;
+
+async function loadPluginSchema(pluginName){
+  const formDiv=document.getElementById('route-params-form');
+  const noSchemaDiv=document.getElementById('route-no-schema');
+  const fieldsDiv=document.getElementById('route-params-fields');
+  _currentSchema=null;
+  if(!pluginName){formDiv.style.display='none';noSchemaDiv.style.display='none';return;}
+  try{
+    const r=await fetch(API+'/admin/plugins/'+pluginName+'/schema');
+    const d=await r.json();
+    if(d.schema && d.schema.fields && d.schema.fields.length){
+      _currentSchema=d.schema;
+      fieldsDiv.innerHTML=renderSchemaFields(d.schema.fields);
+      formDiv.style.display='';
+      noSchemaDiv.style.display='none';
+    }else{
+      formDiv.style.display='none';
+      noSchemaDiv.style.display='';
+      document.getElementById('new-params').value='{}';
+    }
+  }catch(e){
+    formDiv.style.display='none';
+    noSchemaDiv.style.display='';
+  }
+}
+
+function renderSchemaFields(fields){
+  return fields.map(f=>{
+    if(f.type==='metrics_list') return renderMetricsList(f);
+    if(f.type==='str_list')     return renderStrList(f);
+    if(f.type==='bool')         return renderBoolField(f);
+    if(f.type==='int')          return renderIntField(f);
+    return '';
+  }).join('');
+}
+
+function renderBoolField(f){
+  const checked=f.default?'checked':'';
+  return `<div class="schema-field">
+    <label class="schema-toggle">
+      <input type="checkbox" id="spf-${f.key}" ${checked}>
+      <span class="schema-field-label">${f.label}</span>
+    </label>
+    ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
+  </div>`;
+}
+
+function renderIntField(f){
+  const min=f.min!==undefined?`min="${f.min}"`:'';
+  const max=f.max!==undefined?`max="${f.max}"`:'';
+  return `<div class="schema-field">
+    <div class="schema-field-label">${f.label}</div>
+    ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
+    <input type="number" id="spf-${f.key}" value="${f.default??''}" ${min} ${max} style="width:120px">
+  </div>`;
+}
+
+function renderStrList(f){
+  const vals=(f.default||[]).join(', ');
+  return `<div class="schema-field">
+    <div class="schema-field-label">${f.label}</div>
+    ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
+    <input type="text" id="spf-${f.key}" value="${vals}" placeholder="/data, /var" style="width:100%">
+    <div style="font-size:11px;color:var(--text3);margin-top:3px">Через запятую</div>
+  </div>`;
+}
+
+function renderMetricsList(f){
+  const presets=f.presets||[];
+  const presetsHtml=presets.length?`<div style="margin:6px 0 8px;display:flex;flex-wrap:wrap;gap:6px">
+    ${presets.map((p,i)=>`<button class="btn btn-ghost btn-xs" onclick="addMetricPreset('${f.key}',${i})" style="font-size:11px">${p.label}</button>`).join('')}
+  </div>`:'';
+
+  return `<div class="schema-field" id="spf-wrap-${f.key}">
+    <div class="schema-field-label">${f.label}</div>
+    ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
+    ${presetsHtml}
+    <div id="spf-rows-${f.key}" style="display:flex;flex-direction:column;gap:6px"></div>
+    <button class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="addMetricRow('${f.key}')">
+      + Добавить метрику
+    </button>
+  </div>`;
+}
+
+function addMetricRow(key, label='', query='', unit=''){
+  const container=document.getElementById('spf-rows-'+key);
+  const row=document.createElement('div');
+  row.className='metric-row';
+  row.innerHTML=`
+    <input type="text" placeholder="Название" value="${_esc(label)}" class="mr-label" style="width:160px">
+    <input type="text" placeholder="PromQL: node_load1{instance=&quot;{instance}&quot;}" value="${_esc(query)}" class="mr-query" style="flex:1">
+    <input type="text" placeholder="ед." value="${_esc(unit)}" class="mr-unit" style="width:60px">
+    <button class="btn btn-danger btn-xs" onclick="this.parentElement.remove()">✕</button>`;
+  container.appendChild(row);
+}
+
+function addMetricPreset(key, presetIdx){
+  const f=_currentSchema.fields.find(f=>f.key===key);
+  if(!f||!f.presets) return;
+  const p=f.presets[presetIdx];
+  addMetricRow(key, p.label, p.query, p.unit||'');
+}
+
+function _esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+
+function collectMetricRows(key){
+  const rows=document.querySelectorAll('#spf-rows-'+key+' .metric-row');
+  const result=[];
+  rows.forEach(row=>{
+    const label=row.querySelector('.mr-label').value.trim();
+    const query=row.querySelector('.mr-query').value.trim();
+    const unit=row.querySelector('.mr-unit').value.trim();
+    if(query) result.push({label,query,unit});
+  });
+  return result;
+}
+
+function collectRouteParams(){
+  if(!_currentSchema) {
+    // fallback to raw JSON
+    try{ return JSON.parse(document.getElementById('new-params').value||'{}');}
+    catch{toast('Params: невалидный JSON','err');return null;}
+  }
+  const params={};
+  for(const f of _currentSchema.fields){
+    const el=document.getElementById('spf-'+f.key);
+    if(f.type==='bool'){
+      params[f.key]=el?el.checked:f.default;
+    } else if(f.type==='int'){
+      params[f.key]=el?parseInt(el.value,10):f.default;
+    } else if(f.type==='str_list'){
+      const raw=el?el.value:'';
+      params[f.key]=raw.split(',').map(s=>s.trim()).filter(Boolean);
+    } else if(f.type==='metrics_list'){
+      params[f.key]=collectMetricRows(f.key);
+    }
+  }
+  // Remove default/empty values to keep params lean
+  for(const f of _currentSchema.fields){
+    const v=params[f.key];
+    const dflt=f.default;
+    if(JSON.stringify(v)===JSON.stringify(dflt)) delete params[f.key];
+  }
+  return params;
+}
 
 function addRoute(){
   const m=document.getElementById('new-match').value.trim();
   const p=document.getElementById('new-plugin').value;
   if(!m){toast('Укажите alertname','warn');return;}
-  if(!p){toast('Выберите плагин — сначала создайте его в разделе Plugins','warn');return;}
-  let params={};
-  try{params=JSON.parse(document.getElementById('new-params').value||'{}');}catch{
-    toast('Params: невалидный JSON','err');return;
-  }
+  if(!p){toast('Выберите плагин','warn');return;}
+  const params=collectRouteParams();
+  if(params===null) return;
   _routes.push({match:{alertname:m},plugin:p,params});
   renderRouteRows();
   document.getElementById('new-match').value='';
-  document.getElementById('new-params').value='';
+  document.getElementById('new-plugin').value='';
+  document.getElementById('route-params-form').style.display='none';
+  document.getElementById('route-no-schema').style.display='none';
+  _currentSchema=null;
   toast('Маршрут добавлен — нажмите Save & Reload','warn');
 }
 
