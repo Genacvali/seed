@@ -18,8 +18,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 if ! command -v pyinstaller >/dev/null 2>&1; then
-  echo "[i] Устанавливаю PyInstaller..."
-  pip3 install --break-system-packages pyinstaller
+  echo "[i] Устанавливаю PyInstaller (в пользовательский сайт‑пакет)..."
+  # Пробуем через python3 -m pip, без нестандартных флагов.
+  python3 -m pip install --user pyinstaller || python3 -m pip install pyinstaller
 fi
 
 echo "[i] Собираю seed-agent (onefile)..."
