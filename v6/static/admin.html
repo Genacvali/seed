@@ -784,6 +784,77 @@ textarea.code{border-radius:0 0 6px 6px}
       </div>
 
     </div>
+
+    <!-- Plugin Test — full width -->
+    <div class="card">
+      <div class="card-header">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,var(--accent-dim),rgba(167,139,250,.2));border:1px solid rgba(91,124,250,.3);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+            <svg fill="none" stroke="var(--accent)" stroke-width="2" viewBox="0 0 24 24" width="12" height="12"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+          </div>
+          <span class="card-title">Plugin Test</span>
+          <span style="font-size:11px;color:var(--text3)">— запустить плагин на тестовом алерте и увидеть результат</span>
+        </div>
+      </div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
+          <div class="test-field">
+            <label>Plugin</label>
+            <select id="pt-plugin">
+              <option value="" disabled selected>— выберите плагин —</option>
+            </select>
+          </div>
+          <div class="test-field">
+            <label>alertname</label>
+            <input type="text" id="pt-name" value="DiskSpaceLow">
+          </div>
+          <div class="test-field">
+            <label>instance</label>
+            <input type="text" id="pt-inst" placeholder="prod-server:9100">
+          </div>
+          <div class="test-field">
+            <label>severity</label>
+            <select id="pt-sev">
+              <option>warning</option><option>critical</option>
+              <option>high</option><option>info</option><option>low</option>
+            </select>
+          </div>
+          <div class="test-field">
+            <label>summary</label>
+            <input type="text" id="pt-summary" placeholder="Disk / is 88% full">
+          </div>
+          <div class="test-field">
+            <label>params JSON</label>
+            <input type="text" id="pt-params" placeholder="{}" value="{}">
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-ghost" onclick="testPlugin(false)">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+            Run plugin
+          </button>
+          <button class="btn btn-warn" onclick="testPlugin(true)">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Run + Send to Mattermost
+          </button>
+        </div>
+
+        <!-- Result -->
+        <div id="pt-result" style="display:none;margin-top:14px">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden">
+            <div style="padding:8px 14px;background:var(--surface2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+              <span style="font-size:12px;font-weight:600;color:var(--text)" id="pt-result-title"></span>
+              <span style="font-size:11px;color:var(--text3)" id="pt-result-meta"></span>
+            </div>
+            <div id="pt-result-lines" style="padding:12px 14px;font-family:var(--mono);font-size:12px;line-height:1.8;color:var(--text2)"></div>
+          </div>
+        </div>
+
+        <div id="pt-error" style="display:none;margin-top:12px;background:rgba(244,63,94,.07);border:1px solid rgba(244,63,94,.2);border-radius:6px;padding:10px 14px;font-size:12px;color:var(--red);font-family:var(--mono);white-space:pre-wrap"></div>
+      </div>
+    </div>
+
   </div>
 
 </main>
@@ -1123,12 +1194,16 @@ function renderPlugins(list){
 
 function updatePluginDropdown(){
   const sel=document.getElementById('new-plugin');
+  const ptSel=document.getElementById('pt-plugin');
   if(_plugins.length===0){
     sel.innerHTML=`<option value="" disabled selected>— сначала создайте плагин —</option>`;
+    ptSel.innerHTML=`<option value="" disabled selected>— нет плагинов —</option>`;
     document.getElementById('routes-hint').style.display='block';
   }else{
     document.getElementById('routes-hint').style.display='none';
     sel.innerHTML=_plugins.map(p=>`<option value="${p}">${p}</option>`).join('');
+    ptSel.innerHTML=`<option value="" disabled selected>— выберите плагин —</option>`
+      +_plugins.map(p=>`<option value="${p}">${p}</option>`).join('');
   }
 }
 
@@ -1513,6 +1588,71 @@ async function dryRun(){
     box.textContent=j.preview||j.error||'No output';
     toast('Dry-run complete');
   }catch(e){toast('Request failed','err');}
+}
+
+/* ─────────────────────────────── */
+/*  PLUGIN TEST                    */
+/* ─────────────────────────────── */
+async function testPlugin(sendToMM){
+  const plugin=document.getElementById('pt-plugin').value;
+  if(!plugin){toast('Выберите плагин','warn');return;}
+
+  const alertname=document.getElementById('pt-name').value.trim()||'TestAlert';
+  const instance =document.getElementById('pt-inst').value.trim()||'test-host';
+  const severity =document.getElementById('pt-sev').value;
+  const summary  =document.getElementById('pt-summary').value.trim();
+  let params={};
+  try{params=JSON.parse(document.getElementById('pt-params').value||'{}');}
+  catch{toast('Params: невалидный JSON','err');return;}
+
+  const alert={
+    status:'firing',
+    labels:{alertname,instance,severity},
+    annotations:{summary:summary||`Test alert for ${plugin}`}
+  };
+
+  const errBox=document.getElementById('pt-error');
+  const resBox=document.getElementById('pt-result');
+  errBox.style.display='none';
+  resBox.style.display='none';
+
+  try{
+    const r=await fetch(API+'/admin/test_plugin',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({plugin,alert,params,send_to_mm:sendToMM})
+    });
+    const j=await r.json();
+
+    if(!j.ok){
+      errBox.textContent=j.error+(j.traceback?'\n\n'+j.traceback:'');
+      errBox.style.display='block';
+      toast('Plugin error','err');
+      return;
+    }
+
+    // Показать результат
+    document.getElementById('pt-result-title').textContent=j.title||plugin;
+    document.getElementById('pt-result-meta').textContent=
+      `plugin: ${plugin}  ·  ${j.lines.length} lines`+(j.mm_sent?' · ✓ sent to MM':'');
+    document.getElementById('pt-result-lines').innerHTML=
+      j.lines.length
+        ? j.lines.map(l=>`<div>${_esc(l)}</div>`).join('')
+        : '<div style="color:var(--text3);font-style:italic">Plugin вернул пустой список lines</div>';
+    resBox.style.display='block';
+    toast(sendToMM?'Plugin запущен + отправлен в MM ✓':'Plugin запущен ✓');
+  }catch(e){
+    errBox.textContent=String(e);
+    errBox.style.display='block';
+    toast('Request failed','err');
+  }
+}
+
+function _esc(s){
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;');
 }
 
 /* ─────────────────────────────── */

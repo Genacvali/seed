@@ -726,6 +726,62 @@ async def admin_dry_run(req: Request):
     text, color = fmt_batch_message(alerts)
     return {"ok": True, "preview": text, "color": color}
 
+
+@app.post("/admin/test_plugin")
+async def admin_test_plugin(req: Request):
+    """
+    Прогнать один алерт через конкретный плагин и вернуть результат.
+    Body: {
+      "plugin": "os_disk",
+      "alert": {"labels": {...}, "annotations": {...}, "status": "firing"},
+      "params": {},
+      "send_to_mm": false
+    }
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        return JSONResponse({"ok": False, "error": "invalid json"}, 400)
+
+    plugin_name = body.get("plugin", "").strip()
+    if not plugin_name:
+        return JSONResponse({"ok": False, "error": "plugin name required"}, 400)
+
+    alert = body.get("alert", {})
+    params = body.get("params", {})
+    send_to_mm = body.get("send_to_mm", False)
+
+    if not PLUGINS_AVAILABLE or not plugin_router:
+        return JSONResponse({"ok": False, "error": "plugin system not available"}, 500)
+
+    # Загружаем плагин напрямую (минуя маршрутизацию)
+    plugin_module = plugin_router.load_plugin(plugin_name)
+    if not plugin_module:
+        return JSONResponse({"ok": False, "error": f"plugin '{plugin_name}' not found or failed to load"}, 404)
+
+    try:
+        result = plugin_module.run(alert, prom if PROM_CLIENT_AVAILABLE else None, params)
+    except Exception as e:
+        import traceback
+        return JSONResponse({"ok": False, "error": str(e), "traceback": traceback.format_exc()}, 500)
+
+    if not isinstance(result, dict):
+        return JSONResponse({"ok": False, "error": "plugin returned invalid result (expected dict)"}, 500)
+
+    # Если просят отправить в MM — собираем полный пайплайн
+    mm_sent = False
+    if send_to_mm:
+        text, color = fmt_batch_message([alert])
+        mm_sent = send_alert_message(text, color)
+
+    return {
+        "ok": True,
+        "plugin": plugin_name,
+        "title": result.get("title", ""),
+        "lines": result.get("lines", []),
+        "mm_sent": mm_sent,
+    }
+
 # ---------------------------
 # RabbitMQ consumer (опционально)
 # Ожидаем body — это либо alertmanager-пакет, либо один alert со схожими полями.
