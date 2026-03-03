@@ -112,8 +112,8 @@ PROM_BEARER     = os.getenv("PROM_BEARER", "")
 
 # Anti-noise настройки (простое throttling/dedup)
 ALERT_THROTTLE_ENABLE = os.getenv("ALERT_THROTTLE_ENABLE", "1") not in ("0", "false", "False")
-ALERT_THROTTLE_WINDOW_SEC = int(os.getenv("ALERT_THROTTLE_WINDOW_SEC", "60"))
-ALERT_THROTTLE_MAX_PER_WINDOW = int(os.getenv("ALERT_THROTTLE_MAX_PER_WINDOW", "3"))
+ALERT_THROTTLE_WINDOW_SEC = int(os.getenv("ALERT_THROTTLE_WINDOW_SEC", "") or "60")
+ALERT_THROTTLE_MAX_PER_WINDOW = int(os.getenv("ALERT_THROTTLE_MAX_PER_WINDOW", "") or "3")
 
 def clean_llm_response(text: str) -> str:
     """Очищает LLM ответ от блоков кода и форматирует для Mattermost"""
