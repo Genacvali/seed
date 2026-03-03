@@ -474,14 +474,89 @@ textarea.code{border-radius:0 0 6px 6px}
 
 .divider{height:1px;background:var(--border);margin:16px 0}
 
+/* ─── HOW IT WORKS ───────────────────────────────────── */
+.how-it-works{
+  background:linear-gradient(135deg,rgba(91,124,250,.08),rgba(167,139,250,.05));
+  border:1px solid rgba(91,124,250,.2);
+  border-radius:var(--r);padding:14px 18px;margin-bottom:16px;
+}
+.hiw-title{
+  font-size:12px;font-weight:600;color:var(--accent);
+  display:flex;align-items:center;gap:6px;margin-bottom:10px;
+}
+.hiw-steps{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.hiw-step{
+  display:flex;align-items:flex-start;gap:8px;font-size:12px;
+  color:var(--text2);flex:1;min-width:160px;line-height:1.4;
+}
+.hiw-num{
+  width:22px;height:22px;border-radius:50%;
+  background:var(--accent);color:#fff;
+  font-size:11px;font-weight:700;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+}
+.hiw-arrow{color:var(--text3);font-size:18px;padding-top:2px;flex-shrink:0}
+
+/* ─── ROUTE HANDLER CARDS ────────────────────────────── */
+.handler-card{
+  display:flex;align-items:center;gap:12px;
+  padding:12px 14px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:8px;
+  transition:border-color .15s;
+}
+.handler-card:hover{border-color:var(--border2)}
+.handler-alert{
+  font-size:13px;font-weight:600;color:var(--text);
+  background:rgba(91,124,250,.12);border:1px solid rgba(91,124,250,.2);
+  border-radius:5px;padding:3px 10px;
+}
+.handler-arrow{color:var(--text3);font-size:16px;flex-shrink:0}
+.handler-info{flex:1;min-width:0}
+.handler-plugin-name{font-size:13px;font-weight:600;color:var(--text)}
+.handler-desc{font-size:11px;color:var(--text3);margin-top:2px}
+.handler-metrics{
+  display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;
+}
+
+/* ─── WIZARD ─────────────────────────────────────────── */
+.wz-step{display:flex;gap:14px;align-items:flex-start}
+.wz-step-num{
+  width:28px;height:28px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),rgba(167,139,250,.8));
+  color:#fff;font-size:13px;font-weight:700;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 8px rgba(91,124,250,.3);
+}
+.wz-step-body{flex:1;min-width:0}
+.wz-step-title{font-size:13px;font-weight:600;color:var(--text);margin-bottom:3px}
+.wz-step-hint{font-size:12px;color:var(--text3);line-height:1.5}
+
+/* ─── PLUGIN SELECTOR CARDS ──────────────────────────── */
+.wz-plugin-card{
+  cursor:pointer;padding:10px 14px;
+  background:var(--surface2);border:2px solid var(--border);
+  border-radius:8px;min-width:140px;max-width:200px;
+  transition:all .15s;
+}
+.wz-plugin-card:hover{border-color:var(--accent);background:var(--accent-dim)}
+.wz-plugin-card.selected{
+  border-color:var(--accent);
+  background:linear-gradient(135deg,rgba(91,124,250,.15),rgba(167,139,250,.1));
+}
+.wz-plugin-card-icon{font-size:22px;margin-bottom:4px}
+.wz-plugin-card-name{font-size:13px;font-weight:600;color:var(--text)}
+.wz-plugin-card-desc{font-size:11px;color:var(--text3);margin-top:3px;line-height:1.4}
+
 /* ─── SCHEMA PARAMS FORM ─────────────────────────────── */
-.schema-field{margin-bottom:14px}
+.schema-field{margin-bottom:16px}
 .schema-field-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:4px;letter-spacing:.03em}
 .schema-field-desc{font-size:11px;color:var(--text3);margin-bottom:6px;line-height:1.4}
-.schema-toggle{display:flex;align-items:center;gap:8px;cursor:pointer}
-.schema-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
-.metric-row{display:flex;gap:6px;align-items:center;padding:6px 8px;background:var(--bg3);border-radius:6px;border:1px solid var(--border)}
-.metric-row input{background:var(--bg2);border:1px solid var(--border);border-radius:4px;padding:4px 8px;color:var(--text1);font-size:12px}
+.schema-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px}
+.schema-toggle:hover{border-color:var(--border2)}
+.schema-toggle input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+.schema-toggle-label{font-size:13px;color:var(--text)}
+.metric-row{display:flex;gap:6px;align-items:center;padding:8px 10px;background:var(--bg2);border-radius:6px;border:1px solid var(--border)}
+.metric-row input{background:var(--surface2);border:1px solid var(--border);border-radius:4px;padding:5px 8px;color:var(--text1);font-size:12px}
 .metric-row input:focus{outline:none;border-color:var(--accent)}
 </style>
 </head>
@@ -516,7 +591,7 @@ textarea.code{border-radius:0 0 6px 6px}
   </div>
   <div class="nav-item" data-p="routes">
     <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
-    Routes
+    Обработчики
     <span class="nav-badge" id="nav-routes-count">0</span>
   </div>
   <div class="nav-item" data-p="test">
@@ -660,81 +735,114 @@ textarea.code{border-radius:0 0 6px 6px}
 
   <!-- ═══ ROUTES ═══ -->
   <div class="panel" id="p-routes">
-    <div class="hint" id="routes-hint" style="display:none">
-      <b>Нет плагинов!</b> Прежде чем создавать маршруты, создайте хотя бы один плагин в разделе
-      <a onclick="switchPage('plugins')">Plugins</a>.
-      Маршрут связывает имя алерта (<code>alertname</code>) с обработчиком-плагином.
+
+    <!-- How it works banner -->
+    <div class="how-it-works">
+      <div class="hiw-title">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Как это работает
+      </div>
+      <div class="hiw-steps">
+        <div class="hiw-step">
+          <div class="hiw-num">1</div>
+          <div>Alertmanager присылает алерт с именем, например <code>HighCPU</code></div>
+        </div>
+        <div class="hiw-arrow">→</div>
+        <div class="hiw-step">
+          <div class="hiw-num">2</div>
+          <div>SEED находит обработчик по имени алерта</div>
+        </div>
+        <div class="hiw-arrow">→</div>
+        <div class="hiw-step">
+          <div class="hiw-num">3</div>
+          <div>Плагин запрашивает Prometheus и отправляет отчёт в Mattermost</div>
+        </div>
+      </div>
     </div>
 
+    <!-- Existing handlers -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Alert Routes — <code>alerts.yaml</code></span>
+        <div>
+          <span class="card-title">Обработчики алертов</span>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">Сохранено в <code>configs/alerts.yaml</code></div>
+        </div>
         <div style="display:flex;gap:8px">
-          <button class="btn btn-ghost" onclick="loadRoutes()">Reload</button>
-          <button class="btn btn-primary" onclick="saveRoutes()">
+          <button class="btn btn-ghost" onclick="loadRoutes()">Обновить</button>
+          <button class="btn btn-primary" id="btn-save-routes" onclick="saveRoutes()">
             <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-            Save &amp; Reload
+            Сохранить
           </button>
         </div>
       </div>
-      <div id="routes-table-wrap">
-        <div class="table-wrap" style="border:none;border-radius:0">
-          <table id="routes-table">
-            <thead>
-              <tr>
-                <th style="width:36px">#</th>
-                <th>Match condition</th>
-                <th>Plugin</th>
-                <th>Params</th>
-                <th style="width:50px"></th>
-              </tr>
-            </thead>
-            <tbody id="routes-tbody"></tbody>
-          </table>
-        </div>
-        <div id="routes-empty" style="display:none">
-          <div class="empty">
-            <div class="empty-icon">📭</div>
-            <div class="empty-title">Маршрутов нет</div>
-            <div class="empty-sub">Добавьте первый маршрут ниже — укажите alertname и выберите плагин-обработчик.</div>
-          </div>
+      <div id="routes-cards" style="padding:12px 16px;display:flex;flex-direction:column;gap:8px"></div>
+      <div id="routes-empty" style="display:none">
+        <div class="empty">
+          <div class="empty-icon">📭</div>
+          <div class="empty-title">Обработчиков пока нет</div>
+          <div class="empty-sub">Используйте форму ниже, чтобы добавить первый обработчик.</div>
         </div>
       </div>
-      <div class="card-body" style="border-top:1px solid var(--border)">
-        <div class="add-form">
-          <div class="add-form-title">Добавить маршрут</div>
-          <div class="add-form-row" style="align-items:flex-start">
-            <div>
-              <div class="field-label">alertname</div>
-              <input type="text" id="new-match" placeholder="DiskSpaceLow">
-            </div>
-            <div>
-              <div class="field-label">plugin</div>
-              <select id="new-plugin" onchange="loadPluginSchema(this.value)">
-                <option value="" disabled selected>— выберите плагин —</option>
-              </select>
-            </div>
-          </div>
+    </div>
 
-          <!-- Dynamic plugin params form -->
-          <div id="route-params-form" style="display:none;margin-top:14px;padding:14px;background:var(--bg2);border-radius:8px;border:1px solid var(--border)">
-            <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:10px;letter-spacing:.05em">ПАРАМЕТРЫ ПЛАГИНА</div>
-            <div id="route-params-fields"></div>
-          </div>
-          <div id="route-no-schema" style="display:none;margin-top:10px;font-size:12px;color:var(--text3)">
-            <div class="field-label" style="margin-bottom:4px">params JSON</div>
-            <input type="text" id="new-params" placeholder='{}' style="width:100%">
-          </div>
+    <!-- Add handler wizard -->
+    <div class="card" style="margin-top:16px">
+      <div class="card-header">
+        <span class="card-title">Добавить обработчик</span>
+      </div>
+      <div class="card-body" style="padding:20px">
 
-          <div style="margin-top:12px">
-            <button class="btn btn-success" onclick="addRoute()">
-              <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              Add Route
-            </button>
+        <!-- Step 1: Alert name -->
+        <div class="wz-step">
+          <div class="wz-step-num">1</div>
+          <div class="wz-step-body">
+            <div class="wz-step-title">Какой алерт обрабатывать?</div>
+            <div class="wz-step-hint">Введите точное имя алерта из Alertmanager. Можно выбрать из популярных.</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+              <input type="text" id="new-match" placeholder="HighCPU" style="width:220px" list="alertname-datalist">
+              <datalist id="alertname-datalist">
+                <option value="HighCPU">
+                <option value="HighMemoryUsage">
+                <option value="DiskSpaceLow">
+                <option value="InstanceDown">
+                <option value="PostgresSlowQuery">
+                <option value="MongoHighLoad">
+              </datalist>
+              <span style="font-size:11px;color:var(--text3)">Популярные:</span>
+              <button class="btn btn-ghost btn-xs" onclick="document.getElementById('new-match').value='HighCPU'">HighCPU</button>
+              <button class="btn btn-ghost btn-xs" onclick="document.getElementById('new-match').value='HighMemoryUsage'">HighMemoryUsage</button>
+              <button class="btn btn-ghost btn-xs" onclick="document.getElementById('new-match').value='DiskSpaceLow'">DiskSpaceLow</button>
+              <button class="btn btn-ghost btn-xs" onclick="document.getElementById('new-match').value='InstanceDown'">InstanceDown</button>
+            </div>
           </div>
         </div>
-        <div style="margin-top:10px;font-size:11px;color:var(--text3)">
-          Алерт <code>alertname</code> — метка из Alertmanager. После сохранения маршруты перезагружаются без рестарта.
+
+        <!-- Step 2: Choose plugin -->
+        <div class="wz-step" style="margin-top:20px">
+          <div class="wz-step-num">2</div>
+          <div class="wz-step-body">
+            <div class="wz-step-title">Какой плагин запустить?</div>
+            <div class="wz-step-hint">Плагин получит данные алерта и метрики из Prometheus, сформирует диагностический отчёт.</div>
+            <div id="wz-plugin-cards" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px"></div>
+          </div>
+        </div>
+
+        <!-- Step 3: Plugin settings (shown after plugin chosen) -->
+        <div class="wz-step" id="wz-step3" style="margin-top:20px;display:none">
+          <div class="wz-step-num">3</div>
+          <div class="wz-step-body">
+            <div class="wz-step-title">Настройки плагина <span id="wz-plugin-name-label" style="color:var(--accent)"></span></div>
+            <div class="wz-step-hint">Укажите что показывать и какие дополнительные метрики запрашивать из Prometheus.</div>
+            <div id="route-params-fields" style="margin-top:12px"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:12px">
+          <button class="btn btn-success" onclick="addRoute()">
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Добавить обработчик
+          </button>
+          <span style="font-size:11px;color:var(--text3)">После добавления нажмите <b>Сохранить</b> — изменения применятся без рестарта</span>
         </div>
       </div>
     </div>
@@ -1034,7 +1142,7 @@ const PAGES={
   dashboard:{title:'Dashboard',sub:'Agent health & status overview'},
   config:{title:'Configuration',sub:'Edit seed.env settings'},
   plugins:{title:'Plugins',sub:'Python plugin modules in plugins/'},
-  routes:{title:'Routes',sub:'Alert routing rules — alerts.yaml'},
+  routes:{title:'Обработчики',sub:'Когда какой плагин запускать — alerts.yaml'},
   test:{title:'Test & Dry-run',sub:'Send test alerts and preview output'},
 };
 
@@ -1211,14 +1319,14 @@ function renderPlugins(list){
 function updatePluginDropdown(){
   const sel=document.getElementById('new-plugin');
   const ptSel=document.getElementById('pt-plugin');
+  // Wizard plugin cards
+  renderWzPluginCards(_plugins);
   if(_plugins.length===0){
-    sel.innerHTML=`<option value="" disabled selected>— сначала создайте плагин —</option>`;
-    ptSel.innerHTML=`<option value="" disabled selected>— нет плагинов —</option>`;
-    document.getElementById('routes-hint').style.display='block';
+    if(sel) sel.innerHTML=`<option value="" disabled selected>— сначала создайте плагин —</option>`;
+    if(ptSel) ptSel.innerHTML=`<option value="" disabled selected>— нет плагинов —</option>`;
   }else{
-    document.getElementById('routes-hint').style.display='none';
-    sel.innerHTML=_plugins.map(p=>`<option value="${p}">${p}</option>`).join('');
-    ptSel.innerHTML=`<option value="" disabled selected>— выберите плагин —</option>`
+    if(sel) sel.innerHTML=_plugins.map(p=>`<option value="${p}">${p}</option>`).join('');
+    if(ptSel) ptSel.innerHTML=`<option value="" disabled selected>— выберите плагин —</option>`
       +_plugins.map(p=>`<option value="${p}">${p}</option>`).join('');
   }
 }
@@ -1455,10 +1563,11 @@ async function createNewPlugin(){
       // Предложить добавить маршрут
       const alertname=document.getElementById('cns-alertname').value.trim();
       if(alertname){
-        document.getElementById('new-match').value=alertname;
-        document.getElementById('new-plugin').value=name;
         switchPage('routes');
-        toast(`Маршрут для "${alertname}" готов — нажмите Add`,'warn');
+        document.getElementById('new-match').value=alertname;
+        // Auto-select the created plugin card
+        setTimeout(()=>selectWzPlugin(name), 300);
+        toast(`Плагин создан — выберите его ниже и нажмите "Добавить обработчик"`, 'warn');
       }
     }else{
       toast(j.error||'Save failed','err');
@@ -1489,8 +1598,25 @@ async function confirmDeletePlugin(){
 /* ─────────────────────────────── */
 /*  ROUTES                         */
 /* ─────────────────────────────── */
+/* ════════════════════════════════════════════════════════
+   ROUTES / HANDLERS
+   ════════════════════════════════════════════════════════ */
 let _routes=[];
 let _defaultPlugin='echo';
+let _currentSchema=null;
+let _selectedPlugin='';
+
+// Human-readable descriptions per plugin
+const PLUGIN_INFO={
+  'echo':    {icon:'📢', desc:'Базовый обработчик — показывает имя алерта, instance и severity. Используй когда нет специального плагина.'},
+  'os_cpu':  {icon:'🖥', desc:'Диагностика CPU: загрузка ядер, load average, топ процессов, сетевой трафик.'},
+  'os_memory':{icon:'🧠', desc:'Диагностика памяти: RAM, swap, кеш, топ процессов по потреблению памяти.'},
+  'os_disk': {icon:'💿', desc:'Диагностика дисков: использование разделов, inode, скорость I/O.'},
+};
+
+function getPluginInfo(name){
+  return PLUGIN_INFO[name]||{icon:'🔌', desc:`Плагин "${name}"`};
+}
 
 async function loadRoutes(){
   try{
@@ -1498,95 +1624,124 @@ async function loadRoutes(){
     const d=await r.json();
     _routes=d.routes||[];
     _defaultPlugin=d.default_plugin||'echo';
-    renderRouteRows();
+    renderHandlerCards();
     document.getElementById('nav-routes-count').textContent=_routes.length;
     document.getElementById('s-routes').textContent=_routes.length;
     document.getElementById('chip-routes').textContent=_routes.length;
-  }catch(e){toast('Load routes failed','err');}
+  }catch(e){toast('Не удалось загрузить обработчики','err');}
 }
 
-const BADGE_COLORS=['badge-blue','badge-purple','badge-teal','badge-green'];
-let _colorMap={};
-function pluginBadge(name){
-  if(!_colorMap[name]){
-    const idx=Object.keys(_colorMap).length%BADGE_COLORS.length;
-    _colorMap[name]=BADGE_COLORS[idx];
-  }
-  return `<span class="badge ${_colorMap[name]}">${name}</span>`;
-}
-
-function renderRouteRows(){
-  const tbody=document.getElementById('routes-tbody');
+function renderHandlerCards(){
+  const wrap=document.getElementById('routes-cards');
   const empty=document.getElementById('routes-empty');
   if(!_routes.length){
-    tbody.innerHTML='';
+    wrap.innerHTML='';
     empty.style.display='';
     return;
   }
   empty.style.display='none';
-  tbody.innerHTML=_routes.map((rt,i)=>{
-    const m=Object.entries(rt.match||{}).map(([k,v])=>`<code>${k}="${v}"</code>`).join(' ');
+  wrap.innerHTML=_routes.map((rt,i)=>{
+    const alertname=rt.match?.alertname||Object.values(rt.match||{})[0]||'?';
+    const pname=rt.plugin||'echo';
+    const info=getPluginInfo(pname);
     const params=rt.params||{};
-    const paramBadges=renderParamBadges(params);
-    return `<tr>
-      <td style="color:var(--text3)">${i+1}</td>
-      <td>${m}</td>
-      <td>${pluginBadge(rt.plugin)}</td>
-      <td>${paramBadges}</td>
-      <td><button class="btn btn-danger btn-xs" onclick="delRoute(${i})">
+    const metricBadges=buildMetricBadges(params);
+    const otherBadges=buildOtherBadges(params);
+    return `<div class="handler-card">
+      <div class="handler-alert">${alertname}</div>
+      <div class="handler-arrow">→</div>
+      <div style="font-size:20px;flex-shrink:0">${info.icon}</div>
+      <div class="handler-info">
+        <div class="handler-plugin-name">${pname}</div>
+        <div class="handler-desc">${info.desc}</div>
+        ${metricBadges||otherBadges?`<div class="handler-metrics">${metricBadges}${otherBadges}</div>`:''}
+      </div>
+      <button class="btn btn-danger btn-xs" onclick="delRoute(${i})" title="Удалить обработчик">
         <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="12" height="12"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button></td>
-    </tr>`;
+      </button>
+    </div>`;
   }).join('');
 }
 
-function renderParamBadges(params){
-  if(!params||!Object.keys(params).length) return '<span style="color:var(--text3);font-size:11px">—</span>';
+function buildMetricBadges(params){
+  const em=params.extra_metrics;
+  if(!em||!em.length) return '';
+  return em.map(m=>`<span class="badge badge-teal" title="${_esc(m.query)}">📡 ${_esc(m.label||m.query)}</span>`).join('');
+}
+
+function buildOtherBadges(params){
   const parts=[];
   for(const [k,v] of Object.entries(params)){
-    if(k==='extra_metrics' && Array.isArray(v) && v.length){
-      parts.push(`<span class="badge badge-teal" title="${v.map(m=>m.label||m.query).join(', ')}">📡 ${v.length} metrics</span>`);
-    } else if(Array.isArray(v) && v.length){
-      parts.push(`<span class="badge badge-blue">${k}: [${v.join(', ')}]</span>`);
-    } else if(typeof v==='boolean'){
-      if(v!==true) parts.push(`<span class="badge badge-purple">${k}=false</span>`);
-    } else {
-      parts.push(`<span class="badge badge-purple">${k}=${v}</span>`);
-    }
+    if(k==='extra_metrics') continue;
+    if(Array.isArray(v)&&v.length) parts.push(`<span class="badge badge-blue">${k}: ${v.join(',')}</span>`);
+    else if(typeof v==='boolean'&&v===false) parts.push(`<span class="badge badge-purple">${k}: выкл</span>`);
+    else if(typeof v==='number') parts.push(`<span class="badge badge-purple">${k}: ${v}</span>`);
   }
-  return parts.join(' ')||'<span style="color:var(--text3);font-size:11px">—</span>';
+  return parts.join('');
 }
 
-function delRoute(i){_routes.splice(i,1);renderRouteRows();}
+function delRoute(i){
+  _routes.splice(i,1);
+  renderHandlerCards();
+  markUnsaved();
+}
 
-/* ── Plugin schema loader ──────────────────────────────────── */
-let _currentSchema=null;
+function markUnsaved(){
+  document.getElementById('btn-save-routes').textContent='';
+  document.getElementById('btn-save-routes').innerHTML=`
+    <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    Сохранить <span style="color:#fcd34d">●</span>`;
+}
 
-async function loadPluginSchema(pluginName){
-  const formDiv=document.getElementById('route-params-form');
-  const noSchemaDiv=document.getElementById('route-no-schema');
+/* ── Plugin selector cards ─────────────────────────────── */
+function renderWzPluginCards(plugins){
+  const grid=document.getElementById('wz-plugin-cards');
+  if(!grid) return;
+  if(!plugins.length){
+    grid.innerHTML='<div style="font-size:12px;color:var(--text3)">Плагины не найдены. Создайте плагин в разделе <a onclick="switchPage(\'plugins\')" style="color:var(--accent);cursor:pointer">Plugins</a>.</div>';
+    return;
+  }
+  grid.innerHTML=plugins.map(name=>{
+    const info=getPluginInfo(name);
+    return `<div class="wz-plugin-card" id="wpc-${name}" onclick="selectWzPlugin('${name}')">
+      <div class="wz-plugin-card-icon">${info.icon}</div>
+      <div class="wz-plugin-card-name">${name}</div>
+      <div class="wz-plugin-card-desc">${info.desc}</div>
+    </div>`;
+  }).join('');
+}
+
+async function selectWzPlugin(name){
+  _selectedPlugin=name;
+  // Update card selection
+  document.querySelectorAll('.wz-plugin-card').forEach(c=>c.classList.remove('selected'));
+  const card=document.getElementById('wpc-'+name);
+  if(card) card.classList.add('selected');
+
+  // Load schema
+  const step3=document.getElementById('wz-step3');
   const fieldsDiv=document.getElementById('route-params-fields');
+  const label=document.getElementById('wz-plugin-name-label');
   _currentSchema=null;
-  if(!pluginName){formDiv.style.display='none';noSchemaDiv.style.display='none';return;}
+  fieldsDiv.innerHTML='<div style="font-size:12px;color:var(--text3)">Загрузка настроек…</div>';
+  step3.style.display='';
+  if(label) label.textContent='— '+name;
+
   try{
-    const r=await fetch(API+'/admin/plugins/'+pluginName+'/schema');
+    const r=await fetch(API+'/admin/plugins/'+name+'/schema');
     const d=await r.json();
-    if(d.schema && d.schema.fields && d.schema.fields.length){
+    if(d.schema&&d.schema.fields&&d.schema.fields.length){
       _currentSchema=d.schema;
       fieldsDiv.innerHTML=renderSchemaFields(d.schema.fields);
-      formDiv.style.display='';
-      noSchemaDiv.style.display='none';
     }else{
-      formDiv.style.display='none';
-      noSchemaDiv.style.display='';
-      document.getElementById('new-params').value='{}';
+      fieldsDiv.innerHTML='<div style="font-size:12px;color:var(--text3)">Нет дополнительных настроек — плагин запустится с параметрами по умолчанию.</div>';
     }
   }catch(e){
-    formDiv.style.display='none';
-    noSchemaDiv.style.display='';
+    fieldsDiv.innerHTML='<div style="font-size:12px;color:var(--text3)">Нет дополнительных настроек.</div>';
   }
 }
 
+/* ── Schema form renderers ─────────────────────────────── */
 function renderSchemaFields(fields){
   return fields.map(f=>{
     if(f.type==='metrics_list') return renderMetricsList(f);
@@ -1602,9 +1757,9 @@ function renderBoolField(f){
   return `<div class="schema-field">
     <label class="schema-toggle">
       <input type="checkbox" id="spf-${f.key}" ${checked}>
-      <span class="schema-field-label">${f.label}</span>
+      <span class="schema-toggle-label">${f.label}</span>
     </label>
-    ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
+    ${f.description?`<div class="schema-field-desc" style="margin-top:5px">${f.description}</div>`:''}
   </div>`;
 }
 
@@ -1614,7 +1769,7 @@ function renderIntField(f){
   return `<div class="schema-field">
     <div class="schema-field-label">${f.label}</div>
     ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
-    <input type="number" id="spf-${f.key}" value="${f.default??''}" ${min} ${max} style="width:120px">
+    <input type="number" id="spf-${f.key}" value="${f.default??0}" ${min} ${max} style="width:100px">
   </div>`;
 }
 
@@ -1624,47 +1779,57 @@ function renderStrList(f){
     <div class="schema-field-label">${f.label}</div>
     ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
     <input type="text" id="spf-${f.key}" value="${vals}" placeholder="/data, /var" style="width:100%">
-    <div style="font-size:11px;color:var(--text3);margin-top:3px">Через запятую</div>
+    <div style="font-size:11px;color:var(--text3);margin-top:3px">Перечислите через запятую</div>
   </div>`;
 }
 
 function renderMetricsList(f){
   const presets=f.presets||[];
-  const presetsHtml=presets.length?`<div style="margin:6px 0 8px;display:flex;flex-wrap:wrap;gap:6px">
-    ${presets.map((p,i)=>`<button class="btn btn-ghost btn-xs" onclick="addMetricPreset('${f.key}',${i})" style="font-size:11px">${p.label}</button>`).join('')}
-  </div>`:'';
+  const presetsHtml=presets.length?`
+    <div style="margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:5px">Быстрые пресеты — нажмите чтобы добавить:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${presets.map((p,i)=>`<button class="btn btn-ghost btn-xs" onclick="addMetricPreset('${f.key}',${i})">${p.label}</button>`).join('')}
+      </div>
+    </div>`:'';
 
   return `<div class="schema-field" id="spf-wrap-${f.key}">
     <div class="schema-field-label">${f.label}</div>
     ${f.description?`<div class="schema-field-desc">${f.description}</div>`:''}
     ${presetsHtml}
     <div id="spf-rows-${f.key}" style="display:flex;flex-direction:column;gap:6px"></div>
-    <button class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="addMetricRow('${f.key}')">
-      + Добавить метрику
+    <button class="btn btn-ghost btn-xs" style="margin-top:8px" onclick="addMetricRow('${f.key}','','','')">
+      + Добавить свою метрику
     </button>
+    <div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.5">
+      В поле PromQL можно использовать <code>{instance}</code> — SEED подставит адрес хоста из алерта автоматически.<br>
+      Пример: <code>system_load1{"{instance}={instance}"}</code>
+    </div>
   </div>`;
 }
 
-function addMetricRow(key, label='', query='', unit=''){
+function addMetricRow(key, label, query, unit){
   const container=document.getElementById('spf-rows-'+key);
+  if(!container) return;
   const row=document.createElement('div');
   row.className='metric-row';
   row.innerHTML=`
-    <input type="text" placeholder="Название" value="${_esc(label)}" class="mr-label" style="width:160px">
-    <input type="text" placeholder="PromQL: node_load1{instance=&quot;{instance}&quot;}" value="${_esc(query)}" class="mr-query" style="flex:1">
-    <input type="text" placeholder="ед." value="${_esc(unit)}" class="mr-unit" style="width:60px">
-    <button class="btn btn-danger btn-xs" onclick="this.parentElement.remove()">✕</button>`;
+    <input type="text" placeholder="Название (напр. Load 1m)" value="${_esc(label)}" class="mr-label" style="width:170px" title="Как будет называться метрика в отчёте">
+    <input type="text" placeholder="PromQL-запрос" value="${_esc(query)}" class="mr-query" style="flex:1" title="PromQL-запрос к Prometheus. Используй {instance} для подстановки хоста.">
+    <input type="text" placeholder="ед." value="${_esc(unit)}" class="mr-unit" style="width:60px" title="Единица измерения (необязательно)">
+    <button class="btn btn-danger btn-xs" onclick="this.parentElement.remove()" title="Удалить">✕</button>`;
   container.appendChild(row);
 }
 
 function addMetricPreset(key, presetIdx){
+  if(!_currentSchema) return;
   const f=_currentSchema.fields.find(f=>f.key===key);
-  if(!f||!f.presets) return;
+  if(!f||!f.presets||!f.presets[presetIdx]) return;
   const p=f.presets[presetIdx];
   addMetricRow(key, p.label, p.query, p.unit||'');
 }
 
-function _esc(s){return (s||'').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
+function _esc(s){return (s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');}
 
 function collectMetricRows(key){
   const rows=document.querySelectorAll('#spf-rows-'+key+' .metric-row');
@@ -1673,24 +1838,20 @@ function collectMetricRows(key){
     const label=row.querySelector('.mr-label').value.trim();
     const query=row.querySelector('.mr-query').value.trim();
     const unit=row.querySelector('.mr-unit').value.trim();
-    if(query) result.push({label,query,unit});
+    if(query) result.push({label:label||query,query,unit});
   });
   return result;
 }
 
 function collectRouteParams(){
-  if(!_currentSchema) {
-    // fallback to raw JSON
-    try{ return JSON.parse(document.getElementById('new-params').value||'{}');}
-    catch{toast('Params: невалидный JSON','err');return null;}
-  }
+  if(!_currentSchema) return {};
   const params={};
   for(const f of _currentSchema.fields){
     const el=document.getElementById('spf-'+f.key);
     if(f.type==='bool'){
-      params[f.key]=el?el.checked:f.default;
+      params[f.key]=el?el.checked:!!f.default;
     } else if(f.type==='int'){
-      params[f.key]=el?parseInt(el.value,10):f.default;
+      params[f.key]=el?parseInt(el.value,10):(f.default||0);
     } else if(f.type==='str_list'){
       const raw=el?el.value:'';
       params[f.key]=raw.split(',').map(s=>s.trim()).filter(Boolean);
@@ -1698,44 +1859,50 @@ function collectRouteParams(){
       params[f.key]=collectMetricRows(f.key);
     }
   }
-  // Remove default/empty values to keep params lean
+  // Strip fields that match their defaults (keep params lean)
   for(const f of _currentSchema.fields){
     const v=params[f.key];
-    const dflt=f.default;
-    if(JSON.stringify(v)===JSON.stringify(dflt)) delete params[f.key];
+    if(JSON.stringify(v)===JSON.stringify(f.default)) delete params[f.key];
   }
   return params;
 }
 
 function addRoute(){
   const m=document.getElementById('new-match').value.trim();
-  const p=document.getElementById('new-plugin').value;
-  if(!m){toast('Укажите alertname','warn');return;}
-  if(!p){toast('Выберите плагин','warn');return;}
+  if(!m){toast('Укажите имя алерта (шаг 1)','warn');return;}
+  if(!_selectedPlugin){toast('Выберите плагин (шаг 2)','warn');return;}
   const params=collectRouteParams();
-  if(params===null) return;
-  _routes.push({match:{alertname:m},plugin:p,params});
-  renderRouteRows();
+  _routes.push({match:{alertname:m},plugin:_selectedPlugin,params});
+  renderHandlerCards();
+  markUnsaved();
+
+  // Reset form
   document.getElementById('new-match').value='';
-  document.getElementById('new-plugin').value='';
-  document.getElementById('route-params-form').style.display='none';
-  document.getElementById('route-no-schema').style.display='none';
+  document.querySelectorAll('.wz-plugin-card').forEach(c=>c.classList.remove('selected'));
+  document.getElementById('wz-step3').style.display='none';
+  document.getElementById('route-params-fields').innerHTML='';
+  _selectedPlugin='';
   _currentSchema=null;
-  toast('Маршрут добавлен — нажмите Save & Reload','warn');
+  toast('Обработчик добавлен — нажмите Сохранить','warn');
 }
 
 async function saveRoutes(){
   try{
-    const r=await fetch(API+'/admin/routes',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({routes:_routes,default_plugin:_defaultPlugin})});
+    const r=await fetch(API+'/admin/routes',{method:'PUT',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({routes:_routes,default_plugin:_defaultPlugin})});
     const j=await r.json();
     if(j.ok){
-      toast('Routes saved & plugin router reloaded');
+      toast('Обработчики сохранены ✓');
+      document.getElementById('btn-save-routes').innerHTML=`
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        Сохранить`;
       document.getElementById('nav-routes-count').textContent=_routes.length;
       loadHealth();
     }else{
-      toast(j.error||'Failed','err');
+      toast(j.error||'Ошибка сохранения','err');
     }
-  }catch(e){toast('Save failed','err');}
+  }catch(e){toast('Ошибка сохранения','err');}
 }
 
 /* ─────────────────────────────── */
